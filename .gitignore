@@ -1,0 +1,26 @@
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+
+# Legacy secrets and certificates (do not push)
+maisxml_old/phpera/config.php
+maisxml_old/certificados/
+
+# Common future Laravel (harmless if unused)
+/vendor/
+/node_modules/
+/bootstrap/cache/*.php
+/storage/*.key
+/public/storage
+/storage/app/*
+!/storage/app/.gitignore
+/storage/framework/cache/*
+!/storage/framework/cache/.gitignore
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitignore
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+/storage/logs/*
+!/storage/logs/.gitignore

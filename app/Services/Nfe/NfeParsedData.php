@@ -16,5 +16,6 @@ readonly class NfeParsedData
         public ?string $recipientDoc,
         public ?string $total,
         public ?string $cfop,
+        public ?string $cStat = null,
     ) {}
 }

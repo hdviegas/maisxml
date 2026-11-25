@@ -88,7 +88,7 @@ Levantamento de 2026-11-25. Compara o app novo (Laravel 13) com o legado (`maisx
 |---|------|--------|------|
 | P2-1 | **Certificados A1 por filial** com armazenamento seguro (criptografado, fora do webroot) e alerta de vencimento | `certificados/` (9 clientes) | M |
 | P2-2 | **DistDFe/SEFAZ** por filial (NSU, ciência automática 210210, eventos), agendado | `downxmlentrada_teste.php`, `atualiza_auto*.php` | G |
-| P2-3 | **SIEG**: entradas e saídas paginadas, com a chave em `.env`. Hoje ela está fixa no código legado e deve ser rotacionada. | `downxml*_sieg.php` | M |
+| P2-3 | ✅ **SIEG implementado** (2026-11-25): `sieg:account`, `sieg:sync` (NSU ou período, com rate limit e checkpoint), `sieg:probe` e agendamento. Ver [SIEG_INTEGRACAO.md](SIEG_INTEGRACAO.md). **Falta:** confirmar com `sieg:probe` o formato real da resposta usando a chave do cliente, e **rotacionar** a chave SIEG que está fixa no código legado. | `downxml*_sieg.php` | — |
 | P2-4 | **Manifestação do destinatário** (210200/210220/210240) com a tabela `manifesta_dest`. Hoje é uma página estática. | `manifestadest.php` | G |
 | P2-5 | Scheduler (`routes/console.php`) e fila com worker (Supervisor). Na hospedagem compartilhada só existe a janela de cron das 2h às 3h. | — | P |
 

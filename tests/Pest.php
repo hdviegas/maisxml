@@ -287,3 +287,54 @@ function sample_nfce_xml(string $chave, ?string $emitCnpj = null): string
 </nfeProc>
 XML;
 }
+
+function sample_nfe_event_xml(
+    string $chave,
+    int $tpEvento = 110111,
+    string $cStat = '135',
+    int $nSeq = 1,
+    ?string $authorCnpj = null,
+    ?string $xCorrecao = null,
+): string {
+    $authorTag = sample_party_tag($authorCnpj ?? substr($chave, 6, 14));
+    $desc = match ($tpEvento) {
+        110110 => 'Carta de Correcao',
+        110111 => 'Cancelamento',
+        default => 'Evento',
+    };
+    $corr = $xCorrecao !== null
+        ? "<xCorrecao>{$xCorrecao}</xCorrecao><xCondUso>Condicoes de uso</xCondUso>"
+        : '<xJust>Justificativa do cancelamento de teste</xJust>';
+
+    return <<<XML
+<?xml version="1.0" encoding="UTF-8"?>
+<procEventoNFe xmlns="http://www.portalfiscal.inf.br/nfe" versao="1.00">
+<evento versao="1.00">
+<infEvento Id="ID{$tpEvento}{$chave}0{$nSeq}">
+  <cOrgao>35</cOrgao>
+  <tpAmb>1</tpAmb>
+  {$authorTag}
+  <chNFe>{$chave}</chNFe>
+  <dhEvento>2024-06-02T10:00:00-03:00</dhEvento>
+  <tpEvento>{$tpEvento}</tpEvento>
+  <nSeqEvento>{$nSeq}</nSeqEvento>
+  <verEvento>1.00</verEvento>
+  <detEvento versao="1.00">
+    <descEvento>{$desc}</descEvento>
+    {$corr}
+  </detEvento>
+</infEvento>
+</evento>
+<retEvento versao="1.00">
+<infEvento>
+  <tpAmb>1</tpAmb>
+  <cStat>{$cStat}</cStat>
+  <xMotivo>Evento registrado e vinculado a NF-e</xMotivo>
+  <chNFe>{$chave}</chNFe>
+  <tpEvento>{$tpEvento}</tpEvento>
+  <nProt>135240000099999</nProt>
+</infEvento>
+</retEvento>
+</procEventoNFe>
+XML;
+}

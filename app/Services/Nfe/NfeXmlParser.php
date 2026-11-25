@@ -85,6 +85,9 @@ class NfeXmlParser
             $cfop = $this->firstText($xpath, './/*[local-name() = \'CFOP\']', $prod ?? $firstDet);
         }
 
+        $protStat = $xpath->query('//*[local-name() = \'protNFe\']//*[local-name() = \'infProt\']/*[local-name() = \'cStat\']')->item(0);
+        $cStat = $protStat !== null && trim($protStat->textContent) !== '' ? trim($protStat->textContent) : null;
+
         return new NfeParsedData(
             chave: $chave,
             modelo: $mod,
@@ -95,6 +98,7 @@ class NfeXmlParser
             recipientDoc: $recipientDoc,
             total: $vNF,
             cfop: $cfop,
+            cStat: $cStat,
         );
     }
 

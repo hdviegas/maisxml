@@ -6,6 +6,7 @@ Repository for the **Mais XML** remake: **Laravel 13**, **Blade** + controllers 
 
 | File | Purpose |
 |------|---------|
+| `docs/SIEG_INTEGRACAO.md` | Download automatizado de XMLs do SIEG (rate limit, NSU/período, comandos `sieg:*`) |
 | `docs/PENDENCIAS_FINALIZACAO.md` | Pendências para finalizar e publicar na Locaweb (decisões, P0/P1/P2, cutover) |
 | `docs/MEMORY_LEGACY_MAISXML.md` | Legacy feature baseline |
 | `docs/FEATURE_SUGGESTIONS.md` | Product/tech enhancements |

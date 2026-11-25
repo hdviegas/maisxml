@@ -1,0 +1,244 @@
+openapi: 3.0.3
+info:
+  title: Mais XML API
+  version: 1.0.0
+  description: |
+    API REST v1 (Laravel Sanctum) e ingestão máquina (`/api/v1/ingest/xml`).
+    Mensagens de erro administráveis em pt-BR no JSON (`message`).
+servers:
+  - url: http://localhost:8080/api
+    description: Docker local (nginx APP_PORT=8080)
+  - url: http://localhost/api
+    description: Artisan serve / produção (ajuste APP_URL)
+tags:
+  - name: documents
+    description: Documentos fiscais (autenticado)
+  - name: ingest
+    description: Recepção XML (token ou HMAC)
+paths:
+  /v1/documents:
+    get:
+      tags: [documents]
+      summary: Lista documentos (paginada)
+      security: [{ sanctum: [] }]
+      parameters:
+        - name: per_page
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+        - name: q
+          in: query
+          description: Chave (parcial numérica)
+          schema: { type: string }
+        - name: branch_id
+          in: query
+          schema: { type: integer }
+        - name: operation_type
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 5 }
+        - name: issued_from
+          in: query
+          schema: { type: string, format: date }
+        - name: issued_to
+          in: query
+          schema: { type: string, format: date }
+        - name: numero
+          in: query
+          schema: { type: integer }
+        - name: serie
+          in: query
+          schema: { type: integer }
+        - name: modelo
+          in: query
+          schema: { type: string, enum: ['55', '65', '66'] }
+        - name: emitter
+          in: query
+          schema: { type: string }
+        - name: recipient
+          in: query
+          schema: { type: string }
+        - name: sped_reconcile
+          in: query
+          schema: { type: string, enum: [diff, ok, none, unknown] }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items: { $ref: '#/components/schemas/DocumentSummary' }
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+    post:
+      tags: [documents]
+      summary: Importa NF-e (XML ou multipart file)
+      security: [{ sanctum: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [branch_id]
+              properties:
+                branch_id: { type: integer }
+                xml: { type: string, description: XML bruto (alternativa a file) }
+                on_duplicate:
+                  type: string
+                  enum: [reject, skip, replace]
+                  default: reject
+          multipart/form-data:
+            schema:
+              type: object
+              required: [branch_id, file]
+              properties:
+                branch_id: { type: integer }
+                file: { type: string, format: binary }
+                on_duplicate:
+                  type: string
+                  enum: [reject, skip, replace]
+      responses:
+        '200':
+          description: Ignorado/substituido (duplicata conforme policy)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportResult' }
+        '201':
+          description: Criado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ImportResult' }
+        '409':
+          description: Conflito (ex. duplicate_chave)
+  /v1/documents/{id}:
+    get:
+      tags: [documents]
+      summary: Detalhe do documento
+      security: [{ sanctum: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/DocumentDetail' }
+        '404':
+          description: Não encontrado ou fora do escopo
+  /v1/documents/{id}/danfe:
+    get:
+      tags: [documents]
+      summary: PDF DANFE / DANFC-e
+      security: [{ sanctum: [] }]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: application/pdf
+        '404':
+          description: Não encontrado
+  /v1/ingest/xml:
+    post:
+      tags: [ingest]
+      summary: Ingestão máquina (body = XML bruto)
+      parameters:
+        - name: X-Branch-Id
+          in: header
+          required: true
+          schema: { type: string }
+          description: ID da filial
+        - name: X-Ingest-Token
+          in: header
+          schema: { type: string }
+        - name: X-Ingest-Signature
+          in: header
+          description: hex(minúsculo) HMAC-SHA256 do body
+          schema: { type: string }
+        - name: X-On-Duplicate
+          in: header
+          schema: { type: string, enum: [reject, skip, replace], default: reject }
+      requestBody:
+        required: true
+        content:
+          application/xml:
+            schema:
+              type: string
+              format: binary
+      responses:
+        '200':
+          description: OK (skip / replace)
+        '201':
+          description: Criado
+        '401':
+          description: Token/HMAC inválido
+        '409':
+          description: duplicata ou outra org
+        '503':
+          description: Ingest não configurado (sem INGEST_TOKEN nem INGEST_HMAC_SECRET)
+
+components:
+  securitySchemes:
+    sanctum:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum token
+  schemas:
+    PaginationMeta:
+      type: object
+      properties:
+        current_page: { type: integer }
+        last_page: { type: integer }
+        per_page: { type: integer }
+        total: { type: integer }
+    DocumentSummary:
+      type: object
+      properties:
+        id: { type: integer }
+        chave: { type: string }
+        organization_id: { type: integer }
+        branch_id: { type: integer }
+        modelo: { type: string, nullable: true }
+        serie: { type: integer, nullable: true }
+        numero: { type: integer, nullable: true }
+        issued_at: { type: string, format: date-time, nullable: true }
+        total: { type: string, nullable: true }
+        cfop: { type: string, nullable: true }
+        operation_type: { type: integer, nullable: true }
+        operation_label: { type: string, nullable: true }
+        sped_matched: { type: boolean }
+        sped_total_nf: { type: string, nullable: true }
+        sped_reconcile: { type: string, enum: [none, unknown, ok, diff] }
+        cancelled_at: { type: string, format: date-time, nullable: true }
+    DocumentDetail:
+      allOf:
+        - $ref: '#/components/schemas/DocumentSummary'
+        - type: object
+          properties:
+            emitter_cnpj: { type: string, nullable: true }
+            recipient_doc: { type: string, nullable: true }
+            branch:
+              type: object
+              nullable: true
+              properties:
+                id: { type: integer }
+                name: { type: string }
+                cnpj: { type: string }
+    ImportResult:
+      type: object
+      properties:
+        id: { type: integer }
+        chave: { type: string }
+        organization_id: { type: integer }
+        branch_id: { type: integer }
+        result:
+          type: string
+          enum: [created, skipped, replaced]

@@ -3,16 +3,30 @@
 .env
 .env.*
 !.env.example
+.env.backup
+.env.production
 
 # Legacy application (keep locally; not versioned)
 maisxml_old/
 
-# Common future Laravel (harmless if unused)
-/vendor/
-/node_modules/
+.phpactor.json
+.phpunit.result.cache
+/.codex
+/.cursor/
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/node_modules
+/public/build
+/public/fonts-manifest.dev.json
+/public/hot
+/public/storage
 /bootstrap/cache/*.php
 /storage/*.key
-/public/storage
+/storage/pail
 /storage/app/*
 !/storage/app/.gitignore
 /storage/framework/cache/*
@@ -23,3 +37,8 @@ maisxml_old/
 !/storage/framework/views/.gitignore
 /storage/logs/*
 !/storage/logs/.gitignore
+/vendor
+_ide_helper.php
+Homestead.json
+Homestead.yaml
+Thumbs.db

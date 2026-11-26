@@ -7,7 +7,11 @@ use ZipArchive;
 
 /**
  * Extrai XMLs de uma resposta cujo formato não é documentado pela SIEG:
- * string XML, Base64 de XML, Base64 de ZIP, ou JSON contendo qualquer um deles.
+ * string XML, Base64 de XML, Base64 de ZIP, ZIP binário cru (corpo `PK\x03\x04`,
+ * formato real do lote NSU) ou JSON contendo qualquer um deles.
+ *
+ * Um corpo string não vazio que não seja reconhecido como nenhum desses formatos
+ * lança SiegException, para nunca descartar NSUs silenciosamente.
  */
 class SiegPayloadDecoder
 {
@@ -29,6 +33,10 @@ class SiegPayloadDecoder
         $found = [];
         $state = ['bytes' => 0, 'entries' => 0];
         $this->walk($body, $found, $state, 0, 0);
+
+        if ($found === [] && is_string($body) && trim($body) !== '' && ! $this->recognized($body)) {
+            throw new SiegException('Formato de resposta da SIEG não reconhecido; nenhum XML extraído.');
+        }
 
         $unique = [];
         foreach ($found as $doc) {
@@ -89,11 +97,42 @@ class SiegPayloadDecoder
     }
 
     /**
+     * Indica se a string é XML, ZIP cru, Base64 de XML ou Base64 de ZIP.
+     */
+    private function recognized(string $raw): bool
+    {
+        if (str_starts_with($raw, "PK\x03\x04")) {
+            return true;
+        }
+
+        $s = trim($raw, " \t\r\n\"'");
+        if ($this->asXml($s) !== null) {
+            return true;
+        }
+
+        $bytes = base64_decode((string) preg_replace('/\s+/', '', $s), true);
+        if ($bytes === false || $bytes === '') {
+            return false;
+        }
+
+        return str_starts_with($bytes, 'PK') || $this->asXml($bytes) !== null;
+    }
+
+    /**
      * @param  list<SiegDocument>  $out
      * @param  array{bytes:int,entries:int}  $state
      */
     private function handleString(string $raw, array &$out, array &$state, int $zipDepth): void
     {
+        // ZIP binário cru: detectar antes de qualquer trim, que corromperia os bytes.
+        if (str_starts_with($raw, "PK\x03\x04")) {
+            if ($zipDepth < 2) {
+                $this->unzip($raw, $out, $state, $zipDepth + 1);
+            }
+
+            return;
+        }
+
         $s = trim($raw, " \t\r\n\"'");
         if ($s === '') {
             return;

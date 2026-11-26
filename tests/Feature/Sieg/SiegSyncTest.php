@@ -59,6 +59,22 @@ function sync_zip(array $xmls): array
     return ['Arquivo' => $b64];
 }
 
+/** @param list<string> $xmls */
+function sync_raw_zip(array $xmls): string
+{
+    $tmp = tempnam(sys_get_temp_dir(), 'sr');
+    $zip = new ZipArchive;
+    $zip->open($tmp, ZipArchive::OVERWRITE);
+    foreach (array_values($xmls) as $i => $xml) {
+        $zip->addFromString("r{$i}.xml", $xml);
+    }
+    $zip->close();
+    $bytes = (string) file_get_contents($tmp);
+    unlink($tmp);
+
+    return $bytes;
+}
+
 /** @return list<Request> */
 function sync_requests(string $suffix): array
 {
@@ -120,6 +136,38 @@ test('nsu: first run starts at primeiro-1, checkpoints every batch and second ru
     $second = ($this->service)()->sync($account->fresh(), ($this->deadline)());
     expect($second->status)->toBe('ok')->and($second->downloaded)->toBe(0)->and($second->requests)->toBe(1);
     expect(sync_requests('/baixar-xml/nsu/lote'))->toHaveCount(2);
+});
+
+test('nsu: raw binary zip body is decoded, imported and the cursor advances', function () {
+    $account = sync_account(sync_org());
+    Http::fake([
+        '*/create-jwt' => Http::response('jwt-token', 200),
+        '*/consultar-nsu' => Http::response(['PrimeiroNsu' => 10, 'UltimoNsu' => 10]),
+        '*/baixar-xml/nsu/lote' => Http::response(sync_raw_zip([sync_note('1')]), 200, ['Content-Type' => 'application/octet-stream']),
+    ]);
+
+    $run = ($this->service)()->sync($account, ($this->deadline)());
+
+    expect($run->status)->toBe('ok')
+        ->and($run->downloaded)->toBe(1)->and($run->imported)->toBe(1)
+        ->and(FiscalDocument::query()->count())->toBe(1)
+        ->and($account->fresh()->last_nsu)->toBe(10);
+});
+
+test('nsu: unrecognized binary body fails the run and does not advance last_nsu', function () {
+    $account = sync_account(sync_org(), ['last_nsu' => 9]);
+    Http::fake([
+        '*/create-jwt' => Http::response('jwt-token', 200),
+        '*/consultar-nsu' => Http::response(['PrimeiroNsu' => 10, 'UltimoNsu' => 11]),
+        '*/baixar-xml/nsu/lote' => Http::response("\x00\x01garbage\xff\xfe", 200, ['Content-Type' => 'application/octet-stream']),
+    ]);
+
+    $run = ($this->service)()->sync($account, ($this->deadline)());
+
+    expect($run->status)->toBe('failed')
+        ->and($run->message)->toContain('SiegException')
+        ->and($account->fresh()->last_nsu)->toBe(9)
+        ->and(FiscalDocument::query()->count())->toBe(0);
 });
 
 test('nsu: both zero means nothing to do', function () {

@@ -83,54 +83,6 @@
                     </div>
                 </div>
             </div>
-
-            <div class="mx-card overflow-hidden p-0">
-                <div class="mx-card-header bg-slate-50/40">
-                    <p class="mx-section-title">{{ __('Your organizations') }}</p>
-                    <p class="mt-2 max-w-3xl text-sm leading-relaxed text-slate-600">
-                        {{ __('Organizations dashboard intro') }}
-                    </p>
-                    <p class="mt-3 text-xs text-slate-500">
-                        {{ __('dashboard.your_role_legacy') }}:
-                        @php
-                            $t = (int) auth()->user()->tipo;
-                            $legacyRole = match ($t) {
-                                3 => \App\Enums\OrganizationRole::Accountant,
-                                2 => \App\Enums\OrganizationRole::Importer,
-                                default => \App\Enums\OrganizationRole::Admin,
-                            };
-                        @endphp
-                        <span class="font-semibold text-slate-700">{{ __('roles.'.$legacyRole->value) }}</span>
-                    </p>
-                </div>
-                <ul class="grid grid-cols-1 gap-0 divide-y divide-slate-100 xl:grid-cols-2 xl:divide-x xl:divide-y-0">
-                    @forelse ($organizations as $organization)
-                        <li class="px-6 py-6 transition-colors hover:bg-slate-50/50">
-                            <p class="font-semibold text-slate-900">{{ $organization->name }}</p>
-                            @if ($organization->trade_name)
-                                <p class="mt-0.5 text-sm text-slate-500">{{ $organization->trade_name }}</p>
-                            @endif
-                            @if ($organization->cnpj)
-                                <p class="mt-2 text-sm tabular-nums text-slate-600">CNPJ <span class="font-medium text-slate-800">{{ $organization->cnpj }}</span></p>
-                            @endif
-                            @if ($organization->branches->isNotEmpty())
-                                <ul class="mt-4 space-y-2 border-l-2 border-brand-200 pl-4">
-                                    @foreach ($organization->branches as $branch)
-                                        <li class="text-sm text-slate-700">
-                                            <span class="font-medium text-slate-900">{{ $branch->name }}</span>
-                                            <span class="tabular-nums text-slate-500"> · CNPJ {{ $branch->cnpj }}</span>
-                                        </li>
-                                    @endforeach
-                                </ul>
-                            @endif
-                        </li>
-                    @empty
-                        <li class="px-6 py-10 text-center text-sm text-slate-500">
-                            {{ __('No organizations for user') }}
-                        </li>
-                    @endforelse
-                </ul>
-            </div>
         </div>
     </div>
 </x-app-layout>

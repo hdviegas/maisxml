@@ -6,21 +6,34 @@ use App\Models\Branch;
 use App\Models\FiscalDocument;
 use App\Models\Organization;
 use App\Models\User;
+use App\Support\IssuedPeriod;
 use App\Support\Tenant\Cnpj;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Schema;
 
 final class DocumentListQuery
 {
-    public static function forUser(User $user): Builder
+    /**
+     * Normalized CNPJ digits of every branch of the user's organizations.
+     *
+     * @return list<string>
+     */
+    public static function cnpjDigitsForUser(User $user): array
     {
-        $orgIds = Organization::query()->forUser($user)->pluck('id');
-
-        if ($orgIds->isEmpty()) {
-            return FiscalDocument::query()->whereRaw('1 = 0');
+        // Memoize only inside a routed HTTP request (policy checks run once per row); console/jobs/tests
+        // must always see fresh data.
+        $request = request();
+        $key = null;
+        if ($request->route() !== null) {
+            $key = 'tenant_cnpj_digits.'.$user->getKey().'.'.Cnpj::digits((string) $user->cnpj);
+            if ($request->attributes->has($key)) {
+                return $request->attributes->get($key);
+            }
         }
 
-        $digits = Branch::query()
+        $orgIds = Organization::query()->forUser($user)->pluck('id');
+
+        $digits = $orgIds->isEmpty() ? [] : Branch::query()
             ->whereIn('empresa', $orgIds)
             ->pluck('cnpj')
             ->map(fn ($c) => Cnpj::digits((string) $c))
@@ -29,27 +42,34 @@ final class DocumentListQuery
             ->values()
             ->all();
 
+        if ($key !== null) {
+            $request->attributes->set($key, $digits);
+        }
+
+        return $digits;
+    }
+
+    public static function forUser(User $user): Builder
+    {
+        $digits = self::cnpjDigitsForUser($user);
+
         if ($digits === []) {
             return FiscalDocument::query()->whereRaw('1 = 0');
         }
 
-        $emit = Cnpj::sqlNormalizeColumn('xml.cnpj_emit');
-        $dest = Cnpj::sqlNormalizeColumn('xml.cnpj_dest');
-
-        $place = implode(',', array_fill(0, count($digits), '?'));
-
-        return FiscalDocument::query()->whereRaw(
-            "({$emit} IN ({$place}) OR {$dest} IN ({$place}))",
-            [...$digits, ...$digits]
-        );
+        // xml.cnpj_* hold digits only; compare the raw columns so the indexes stay usable.
+        return FiscalDocument::query()->where(function (Builder $q) use ($digits): void {
+            $q->whereIn('xml.cnpj_emit', $digits)->orWhereIn('xml.cnpj_dest', $digits);
+        });
     }
 
     public static function applyFilters(Builder $query, DocumentListFilters $filters, User $user): Builder
     {
-        $term = trim((string) $filters->q);
-        if ($term !== '') {
-            $safe = preg_replace('/[^\d]/', '', $term);
-            if ($safe !== '') {
+        $safe = $filters->qDigits();
+        if ($safe !== '') {
+            if (strlen($safe) === 44) {
+                $query->where('xml.chave', $safe);
+            } else {
                 $query->where('xml.chave', 'like', '%'.$safe.'%');
             }
         }
@@ -59,9 +79,9 @@ final class DocumentListQuery
             if ($branch !== null) {
                 $c = Cnpj::digits((string) $branch->cnpj);
                 if ($c !== '') {
-                    $emit = Cnpj::sqlNormalizeColumn('xml.cnpj_emit');
-                    $dest = Cnpj::sqlNormalizeColumn('xml.cnpj_dest');
-                    $query->whereRaw("({$emit} = ? OR {$dest} = ?)", [$c, $c]);
+                    $query->where(function (Builder $q) use ($c): void {
+                        $q->where('xml.cnpj_emit', $c)->orWhere('xml.cnpj_dest', $c);
+                    });
                 }
             }
         }
@@ -74,12 +94,15 @@ final class DocumentListQuery
             $query->where('xml.operation_type', $filters->operationType);
         }
 
-        if ($filters->issuedFrom !== null && $filters->issuedFrom !== '') {
-            $query->whereDate('xml.data_nf', '>=', $filters->issuedFrom);
+        // Sargable range on data_nf (DATE): no DATE() wrapper; end is exclusive (day after).
+        $from = IssuedPeriod::parseDate($filters->issuedFrom);
+        if ($from !== null) {
+            $query->where('xml.data_nf', '>=', $from->toDateString());
         }
 
-        if ($filters->issuedTo !== null && $filters->issuedTo !== '') {
-            $query->whereDate('xml.data_nf', '<=', $filters->issuedTo);
+        $to = IssuedPeriod::parseDate($filters->issuedTo);
+        if ($to !== null) {
+            $query->where('xml.data_nf', '<', $to->addDay()->toDateString());
         }
 
         if ($filters->numero !== null) {
@@ -118,9 +141,8 @@ final class DocumentListQuery
             return;
         }
 
-        $spedCnpj = Cnpj::sqlNormalizeColumn('s.cnpj');
-        $exists = 'EXISTS (SELECT 1 FROM sped s WHERE s.chave_nf = xml.chave AND '.$spedCnpj.' = ?)';
-        $spedTotal = '(SELECT s.total_nf FROM sped s WHERE s.chave_nf = xml.chave AND '.$spedCnpj.' = ? ORDER BY s.data_nf DESC LIMIT 1)';
+        $exists = 'EXISTS (SELECT 1 FROM sped s WHERE s.chave_nf = xml.chave AND s.cnpj = ?)';
+        $spedTotal = '(SELECT s.total_nf FROM sped s WHERE s.chave_nf = xml.chave AND s.cnpj = ? ORDER BY s.data_nf DESC LIMIT 1)';
 
         match ($mode) {
             'none' => $query->whereRaw('NOT '.$exists, [$cnpj]),
@@ -150,9 +172,8 @@ final class DocumentListQuery
                 ->selectRaw('NULL as sped_total_nf');
         }
 
-        $spedCnpj = Cnpj::sqlNormalizeColumn('s.cnpj');
-        $exists = 'EXISTS (SELECT 1 FROM sped s WHERE s.chave_nf = xml.chave AND '.$spedCnpj.' = ?)';
-        $total = '(SELECT s.total_nf FROM sped s WHERE s.chave_nf = xml.chave AND '.$spedCnpj.' = ? ORDER BY s.data_nf DESC LIMIT 1)';
+        $exists = 'EXISTS (SELECT 1 FROM sped s WHERE s.chave_nf = xml.chave AND s.cnpj = ?)';
+        $total = '(SELECT s.total_nf FROM sped s WHERE s.chave_nf = xml.chave AND s.cnpj = ? ORDER BY s.data_nf DESC LIMIT 1)';
 
         return $query->select('xml.*')
             ->selectRaw('('.$exists.') as sped_matched', [$cnpj])

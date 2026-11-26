@@ -41,7 +41,7 @@ test('api document index returns sped reconcile diff when totals mismatch', func
     $line = "|C100|0|1|PART|55|00|1|999|{$chave}|01062024|01062024|9999,99|||||||||99,99|";
     app(SpedC100ImportService::class)->importFromText($user, $branch, $line);
 
-    $response = $this->getJson('/api/v1/documents?per_page=10', [
+    $response = $this->getJson('/api/v1/documents?per_page=10&q='.$chave, [
         'Authorization' => 'Bearer '.$token,
     ]);
 

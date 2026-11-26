@@ -32,10 +32,30 @@ class Organization extends Model
             return $query->whereRaw('1 = 0');
         }
 
-        return $query->whereRaw(
-            Cnpj::sqlNormalizeColumn('empresa.cnpj').' = ?',
-            [$digits]
-        );
+        return $query->whereKey(self::idsMatchingCnpj($digits));
+    }
+
+    /**
+     * IDs of organizations whose (possibly dirty-formatted) CNPJ equals $digits.
+     *
+     * Normalization happens in PHP: `empresa` is tiny and may hold formatting garbage,
+     * whereas wrapping the column in SQL functions would defeat indexes.
+     *
+     * @return list<int>
+     */
+    public static function idsMatchingCnpj(string $digits): array
+    {
+        if ($digits === '') {
+            return [];
+        }
+
+        return static::query()
+            ->get(['id', 'cnpj'])
+            ->filter(fn ($o) => Cnpj::digits((string) $o->cnpj) === $digits)
+            ->pluck('id')
+            ->map(fn ($id) => (int) $id)
+            ->values()
+            ->all();
     }
 
     /**

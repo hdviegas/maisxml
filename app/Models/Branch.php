@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Support\Tenant\Cnpj;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -30,6 +31,26 @@ class Branch extends Model
         return [
             'entrada' => 'boolean',
         ];
+    }
+
+    /**
+     * Branch codes whose (possibly dirty-formatted) CNPJ equals $digits; normalized in PHP, not SQL.
+     *
+     * @return list<int>
+     */
+    public static function codesMatchingCnpj(string $digits): array
+    {
+        if ($digits === '') {
+            return [];
+        }
+
+        return static::query()
+            ->get(['codigo', 'cnpj'])
+            ->filter(fn ($b) => Cnpj::digits((string) $b->cnpj) === $digits)
+            ->pluck('codigo')
+            ->map(fn ($c) => (int) $c)
+            ->values()
+            ->all();
     }
 
     public function organization(): BelongsTo

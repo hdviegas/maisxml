@@ -136,11 +136,11 @@ class SiegAccountCommand extends Command
         }
 
         $matches = Organization::query()
-            ->whereRaw(Cnpj::sqlNormalizeColumn('empresa.cnpj').' = ?', [$digits])
+            ->whereKey(Organization::idsMatchingCnpj($digits))
             ->get();
 
         $branchOrgIds = Branch::query()
-            ->whereRaw(Cnpj::sqlNormalizeColumn('empresa_filial.cnpj').' = ?', [$digits])
+            ->whereKey(Branch::codesMatchingCnpj($digits))
             ->pluck('empresa')
             ->unique();
         if ($branchOrgIds->isNotEmpty()) {

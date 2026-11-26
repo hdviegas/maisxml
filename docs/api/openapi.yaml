@@ -27,7 +27,7 @@ paths:
           schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
         - name: q
           in: query
-          description: Chave (parcial numérica)
+          description: Chave (parcial numérica). Com 44 dígitos faz busca exata e dispensa o período padrão.
           schema: { type: string }
         - name: branch_id
           in: query
@@ -37,9 +37,11 @@ paths:
           schema: { type: integer, minimum: 1, maximum: 5 }
         - name: issued_from
           in: query
+          description: Emissão a partir de (Y-m-d). Sem issued_from/issued_to (e sem busca por chave completa de 44 dígitos), aplica-se o período padrão dos últimos N dias (config dashboard.default_period_days, padrão 7).
           schema: { type: string, format: date }
         - name: issued_to
           in: query
+          description: Emissão até (Y-m-d, dia inclusivo). Ver issued_from sobre o período padrão.
           schema: { type: string, format: date }
         - name: numero
           in: query

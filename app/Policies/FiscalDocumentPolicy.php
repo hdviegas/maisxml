@@ -6,6 +6,7 @@ use App\Models\FiscalDocument;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\Documents\DocumentListQuery;
+use App\Support\Tenant\Cnpj;
 
 class FiscalDocumentPolicy
 {
@@ -16,9 +17,13 @@ class FiscalDocumentPolicy
 
     public function view(User $user, FiscalDocument $fiscalDocument): bool
     {
-        return DocumentListQuery::forUser($user)
-            ->whereKey($fiscalDocument->getKey())
-            ->exists();
+        // Same rule as DocumentListQuery::forUser, evaluated on the loaded row (no per-row query).
+        $digits = DocumentListQuery::cnpjDigitsForUser($user);
+        $emit = Cnpj::digits((string) $fiscalDocument->getRawOriginal('cnpj_emit'));
+        $dest = Cnpj::digits((string) $fiscalDocument->getRawOriginal('cnpj_dest'));
+
+        return ($emit !== '' && in_array($emit, $digits, true))
+            || ($dest !== '' && in_array($dest, $digits, true));
     }
 
     public function create(User $user): bool

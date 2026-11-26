@@ -8,9 +8,4 @@ final class Cnpj
     {
         return preg_replace('/\D/', '', (string) $value) ?? '';
     }
-
-    public static function sqlNormalizeColumn(string $column): string
-    {
-        return "REPLACE(REPLACE(REPLACE(REPLACE({$column}, '.', ''), '-', ''), '/', ''), ' ', '')";
-    }
 }

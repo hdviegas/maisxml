@@ -15,5 +15,4 @@ return [
     'open_list' => 'Abrir na lista',
     'quick_import' => 'Importar XML',
     'quick_reports' => 'Relatórios e auditoria',
-    'your_role_legacy' => 'Função na empresa (tipo de usuário)',
 ];

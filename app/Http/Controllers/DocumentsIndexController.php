@@ -23,13 +23,22 @@ class DocumentsIndexController extends Controller
         $query = $this->documentsQueryFromRequest($request, withSpedColumns: true)
             ->with('branch');
 
-        $documents = $query->paginate($perPage)->appends($request->query());
+        $filters = $this->documentFilters($request);
+        $periodParams = array_filter([
+            'issued_from' => $filters->issuedFrom,
+            'issued_to' => $filters->issuedTo,
+        ], fn ($v) => $v !== null && $v !== '');
+
+        $documents = $query->paginate($perPage)->appends(array_merge($request->query(), $periodParams));
 
         $orgIds = ActiveOrganizationSession::scopedOrganizationIds($request->user());
 
         return view('documents.index', [
             'documents' => $documents,
             'filterParams' => $request->query(),
+            'issuedFrom' => $filters->issuedFrom,
+            'issuedTo' => $filters->issuedTo,
+            'periodIsDefault' => ! $request->filled('issued_from') && ! $request->filled('issued_to') && $periodParams !== [],
             'branches' => Branch::query()
                 ->whereIn('empresa', $orgIds->all())
                 ->orderBy('social')

@@ -57,6 +57,8 @@ return [
     'filter_serie' => 'Série',
     'filter_modelo' => 'Modelo',
     'filter_emitter' => 'Emitente (CNPJ/CPF)',
+    'more_filters' => 'Mais filtros',
+    'less_filters' => 'Menos filtros',
     'filter_recipient' => 'Destinatário (CNPJ/CPF)',
     'filter_sped_reconcile' => 'Conferência SPED',
     'filter_sped_all' => 'Todas',

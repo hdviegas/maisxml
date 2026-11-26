@@ -184,9 +184,7 @@ class FiscalDocument extends Model
             return null;
         }
 
-        return Organization::query()
-            ->whereRaw(Cnpj::sqlNormalizeColumn('empresa.cnpj').' = ?', [$emit])
-            ->value('id');
+        return Organization::idsMatchingCnpj($emit)[0] ?? null;
     }
 
     public function getBranchIdAttribute(): ?int
@@ -197,9 +195,7 @@ class FiscalDocument extends Model
             return null;
         }
 
-        return Branch::query()
-            ->whereRaw(Cnpj::sqlNormalizeColumn('empresa_filial.cnpj').' = ?', [$emit])
-            ->value('codigo');
+        return Branch::codesMatchingCnpj($emit)[0] ?? null;
     }
 
     /**

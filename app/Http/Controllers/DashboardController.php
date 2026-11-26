@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Organization;
 use App\Models\User;
 use App\Services\Dashboard\DashboardStatsCache;
 use App\Services\Documents\DocumentListFilters;
 use App\Services\Documents\DocumentListQuery;
+use App\Support\IssuedPeriod;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\Request;
@@ -17,7 +17,6 @@ class DashboardController extends Controller
     public function __invoke(Request $request): View
     {
         $user = $request->user();
-        $organizations = Organization::query()->forUser($user)->with('branches')->orderBy('social')->get();
 
         [$issuedFrom, $issuedTo] = $this->resolveIssuedPeriod($request);
 
@@ -39,7 +38,6 @@ class DashboardController extends Controller
         $today = CarbonImmutable::now($timezone)->startOfDay();
 
         return view('dashboard', [
-            'organizations' => $organizations,
             'documentsTotal' => $stats['documentsTotal'],
             'spedDiffCount' => $stats['spedDiffCount'],
             'spedMissingCount' => $stats['spedMissingCount'],
@@ -63,9 +61,7 @@ class DashboardController extends Controller
         $defaultDays = max(1, (int) config('dashboard.default_period_days', 30));
         $maxSpan = max($defaultDays, (int) config('dashboard.max_period_days', 366));
 
-        $today = CarbonImmutable::now($timezone)->startOfDay();
-        $defaultTo = $today->toDateString();
-        $defaultFrom = $today->subDays($defaultDays - 1)->toDateString();
+        [$defaultFrom, $defaultTo] = IssuedPeriod::defaultRange();
 
         $rawFrom = $request->query('issued_from');
         $rawTo = $request->query('issued_to');

@@ -18,6 +18,18 @@ final class DocumentListFilters
         public ?string $spedReconcile = null,
     ) {}
 
+    /** Digits-only form of the free-text search term. */
+    public function qDigits(): string
+    {
+        return preg_replace('/\D/', '', trim((string) $this->q)) ?? '';
+    }
+
+    /** True when the search term is a complete 44-digit access key. */
+    public function isFullKeySearch(): bool
+    {
+        return strlen($this->qDigits()) === 44;
+    }
+
     /**
      * @param  array<string, mixed>  $query
      */

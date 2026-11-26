@@ -13,6 +13,12 @@
     }
 }
 
+@layer base {
+    [hidden] {
+        display: none !important;
+    }
+}
+
 @layer components {
     .app-shell {
         @apply min-h-screen bg-gradient-to-b from-slate-100 via-slate-50 to-white;
@@ -122,5 +128,45 @@
 
     .mx-table-row {
         @apply border-b border-slate-100 transition-colors last:border-b-0 even:bg-slate-50/40 hover:bg-brand-50/40;
+    }
+
+    .mx-input-sm {
+        @apply mx-input mt-1 py-1.5 px-3;
+    }
+
+    .mx-select-sm {
+        @apply mx-select mt-1 py-1.5 pl-3 pr-8;
+    }
+
+    .mx-btn-sm {
+        @apply px-3 py-1.5;
+    }
+
+    .mx-btn-xs {
+        @apply inline-flex items-center justify-center gap-1 whitespace-nowrap rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/40;
+    }
+
+    .mx-btn-xs--danger {
+        @apply border-rose-200 text-rose-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-800 focus-visible:ring-rose-500/40;
+    }
+
+    .mx-table-wrap--scroll {
+        @apply overflow-x-auto;
+    }
+
+    .mx-table--compact .mx-table-header {
+        @apply px-3 py-2 text-[0.625rem] tracking-wider;
+    }
+
+    .mx-table--compact .mx-table-cell {
+        @apply px-3 py-1.5 text-[0.8125rem] align-middle;
+    }
+
+    .mx-table--compact .mx-table-cell-center {
+        @apply px-3 py-1.5 text-center align-middle;
+    }
+
+    .mx-badge {
+        @apply inline-flex items-center whitespace-nowrap rounded px-1.5 py-px text-[0.6875rem] font-semibold leading-4;
     }
 }

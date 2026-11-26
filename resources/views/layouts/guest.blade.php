@@ -15,18 +15,19 @@
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
     <body class="font-sans text-slate-800 antialiased">
-        <div class="flex min-h-screen flex-col items-center bg-gradient-to-b from-slate-100 via-white to-slate-50 pt-8 sm:justify-center sm:pt-0">
-            <div>
+        <div class="flex min-h-screen flex-col items-center bg-gradient-to-b from-slate-100 via-white to-slate-50">
+            {{-- Logo + formulário centralizados no espaço livre; o rodapé fica embaixo sem empurrá-los ao topo. --}}
+            <main class="flex w-full flex-1 flex-col items-center justify-center px-4 py-12">
                 <a href="/" class="block rounded-xl outline-none ring-brand-500/0 transition hover:ring-2 focus-visible:ring-2">
                     <x-application-logo />
                 </a>
-            </div>
 
-            <div class="mx-card mt-8 w-full px-8 py-7 sm:max-w-md">
-                {{ $slot }}
-            </div>
+                <div class="mx-card mt-8 w-full px-8 py-7 sm:max-w-md">
+                    {{ $slot }}
+                </div>
+            </main>
 
-            <footer class="mt-auto flex justify-center px-4 py-8">
+            <footer class="flex justify-center px-4 py-8">
                 <x-application-logo variant="footer" />
             </footer>
         </div>

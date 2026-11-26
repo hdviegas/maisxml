@@ -35,14 +35,15 @@ class DocumentsIndexController extends Controller
 
         $branches = Branch::query()
             ->whereIn('empresa', $orgIds->all())
-            ->orderBy('social')
-            ->get();
+            ->get()
+            ->sortBy(fn (Branch $b) => mb_strtolower($b->name))
+            ->values();
 
         // Single preloaded map (digits-only CNPJ => branch name) used as fallback for empty social_*.
         $branchNamesByCnpj = [];
         foreach ($branches as $b) {
             $digits = Cnpj::digits((string) $b->cnpj);
-            $name = trim((string) $b->fantasia) !== '' ? trim((string) $b->fantasia) : trim((string) $b->social);
+            $name = trim($b->name);
             if ($digits !== '' && $name !== '') {
                 $branchNamesByCnpj[$digits] = $name;
             }

@@ -39,7 +39,7 @@ final class BranchNameResolver
         $byCode = [];
 
         foreach (Branch::query()->whereIn('empresa', $orgIds)->get(['codigo', 'social', 'fantasia', 'cnpj']) as $branch) {
-            $name = trim((string) $branch->social) !== '' ? (string) $branch->social : (string) $branch->fantasia;
+            $name = $branch->name;
             $byCode[(int) $branch->codigo] = $name;
 
             $digits = Cnpj::digits((string) $branch->cnpj);

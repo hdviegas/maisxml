@@ -23,8 +23,9 @@ class SpedImportController extends Controller
         return view('sped.index', [
             'branches' => Branch::query()
                 ->whereIn('empresa', $orgIds->all())
-                ->orderBy('social')
-                ->get(),
+                ->get()
+                ->sortBy(fn (Branch $b) => mb_strtolower($b->name))
+                ->values(),
         ]);
     }
 

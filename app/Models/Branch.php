@@ -70,7 +70,9 @@ class Branch extends Model
 
     public function getNameAttribute(): string
     {
-        return (string) ($this->social ?? '');
+        $fantasia = trim((string) ($this->fantasia ?? ''));
+
+        return $fantasia !== '' ? $fantasia : (string) ($this->social ?? '');
     }
 
     public function getEntradaEnabledAttribute(): bool

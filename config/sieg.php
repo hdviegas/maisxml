@@ -85,6 +85,17 @@ return [
         'pause_minutes' => 60,
     ],
 
+    /*
+    | Endpoint HTTP de sincronização (/api/cron/sieg-sync) para hospedagem sem PHP CLI,
+    | chamado por um serviço externo de cron (ex.: cron-job.org, timeout de 30 s no plano
+    | gratuito). Token vazio desativa o endpoint (responde 404). Cada chamada roda no máximo
+    | `max_runtime_seconds`; a próxima retoma de onde parou.
+    */
+    'cron' => [
+        'token' => env('SIEG_CRON_TOKEN'),
+        'max_runtime_seconds' => (int) env('SIEG_CRON_MAX_RUNTIME', 25),
+    ],
+
     'schedule' => [
         'enabled' => (bool) env('SIEG_SCHEDULE_ENABLED', false),
         // Expressão cron do agendamento de `sieg:sync`.

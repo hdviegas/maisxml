@@ -213,9 +213,35 @@ Sem SSH não há como rodar `artisan` no servidor:
 
 ---
 
-## 9. Agendamento (SIEG) — depois
+## 9. Agendamento (SIEG)
 
-Na hospedagem compartilhada, o agendador da Locaweb só roda entre 2h e 3h e não aceita "a cada minuto". Quando a conta SIEG for cadastrada (`php artisan sieg:account`, ver [SIEG_INTEGRACAO.md](SIEG_INTEGRACAO.md)), agende no painel, uma vez por noite:
+A hospedagem compartilhada não tem PHP na linha de comando e o cron da Locaweb só roda entre 2h e 3h. Há duas opções (cadastre antes a conta SIEG; ver [SIEG_INTEGRACAO.md](SIEG_INTEGRACAO.md)). Se o servidor não tiver PHP CLI, crie as tabelas SIEG com `database/sql/sieg_migrations_manual.sql` (phpMyAdmin) em vez de `php artisan migrate`.
+
+### Opção A (recomendada): endpoint HTTP + cron-job.org
+
+O sistema expõe `https://www.maisxml.com.br/admin/api/cron/sieg-sync`, protegido por token. Cada chamada sincroniza por até 25 s e a próxima retoma de onde parou.
+
+1. **Gere o token** no seu Mac: `openssl rand -hex 32`.
+2. No `.env` do servidor defina `SIEG_CRON_TOKEN=<token>` (e, opcionalmente, `SIEG_CRON_MAX_RUNTIME=25`). Se usar `config:cache`, rode-o de novo (ou apague `bootstrap/cache/config.php`).
+3. **Teste** com curl:
+   ```bash
+   curl -s -X POST -H "X-Cron-Token: SEU_TOKEN" https://www.maisxml.com.br/admin/api/cron/sieg-sync
+   ```
+   Deve voltar um JSON com `ok` e a lista `accounts`. Sem o token (ou com token errado) a resposta é **404**, de propósito. O token nunca é aceito na URL.
+4. Crie uma conta gratuita em https://cron-job.org e clique em **Create cronjob**.
+5. **URL:** `https://www.maisxml.com.br/admin/api/cron/sieg-sync`; **execução:** a cada 5 ou 10 minutos.
+6. Em **Advanced**: *Request method* **POST**; em *Headers* adicione `X-Cron-Token` com o valor do token.
+7. Ative as notificações de falha (*Notify me when the execution of the cronjob fails*) e salve.
+
+O limite é de 6 chamadas por minuto por IP (excedente retorna 429).
+
+**Primeira carga:** buscar até ~90 dias de NSUs exige muitas chamadas (cada uma roda só ~25 s e a SIEG limita as requisições por minuto); deixe o cron rodando por horas ou dias até o histórico ser baixado.
+
+**Acompanhamento:** no phpMyAdmin, consulte a tabela `sieg_sync_runs` (colunas `status`, `requests`, `downloaded`, `imported`, `errors`, `message`), por exemplo ordenando por `id` decrescente.
+
+### Opção B: cron noturno da Locaweb
+
+Só se for encontrado um caminho de PHP CLI no servidor. Agende no painel, uma vez por noite:
 
 ```bash
 cd ~/public_html/admin && php artisan sieg:sync --max-runtime=3300

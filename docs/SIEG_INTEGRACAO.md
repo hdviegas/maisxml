@@ -141,3 +141,7 @@ Comandos: sieg:account, sieg:accounts, sieg:sync, sieg:probe
 3. `php artisan sieg:probe {conta}` (opcional, uma única chamada real): confirma a autenticação e o formato da resposta.
 4. `php artisan sieg:sync --account={conta}`: primeira carga manual; acompanhe com `php artisan sieg:accounts`.
 5. Ligue `SIEG_SCHEDULE_ENABLED=true` (VPS) ou agende no painel (hospedagem compartilhada).
+
+### Endpoint HTTP de sincronização (hospedagem sem PHP CLI)
+
+`GET/POST /api/cron/sieg-sync` (em produção, `/admin/api/cron/sieg-sync`) roda `sieg:sync` por até `SIEG_CRON_MAX_RUNTIME` segundos (padrão 25) e devolve JSON com o resultado por conta. Exige o header `X-Cron-Token` (ou `Authorization: Bearer`) igual a `SIEG_CRON_TOKEN`; sem token configurado ou com token inválido responde 404. Pensado para um cron externo a cada 5–10 minutos; passo a passo em [DEPLOY_LOCAWEB.md](DEPLOY_LOCAWEB.md) §9.

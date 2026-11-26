@@ -36,5 +36,7 @@ class AppServiceProvider extends ServiceProvider
 
             return Limit::perMinute($max)->by($request->ip());
         });
+
+        RateLimiter::for('cron', fn (Request $request) => Limit::perMinute(6)->by($request->ip()));
     }
 }

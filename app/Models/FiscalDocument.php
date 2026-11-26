@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\DocumentOperationType;
 use App\Services\Cfop\OperationClassifier;
+use App\Services\Documents\DocumentListQuery;
+use App\Services\Documents\DocumentOperationRules;
 use App\Support\Tenant\Cnpj;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
@@ -200,10 +202,16 @@ class FiscalDocument extends Model
     }
 
     /**
-     * If `operation_type` exists on the row (optional column), use it; otherwise derive from CFOP.
+     * Role-based label (legacy rule) for the authenticated user; falls back to the CFOP classification
+     * (and the optional `operation_type` column) when there is no user, e.g. console/jobs.
      */
     public function getOperationTypeAttribute(): ?DocumentOperationType
     {
+        $user = auth()->user();
+        if ($user instanceof User) {
+            return DocumentOperationRules::labelFor($this, DocumentListQuery::cnpjDigitsForUser($user));
+        }
+
         if (isset($this->attributes['operation_type'])) {
             $enum = DocumentOperationType::tryFrom((int) $this->attributes['operation_type']);
             if ($enum !== null) {

@@ -1,7 +1,9 @@
 <?php
 
 /**
- * Classificação de operação (legado `operacao` em api.php): 1 compras, 2 saída, 3 transferência, 4 entradas gerais, 5 devoluções.
+ * Classificação de operação por CFOP: usada apenas na importação (coluna operation_type) e como fallback quando não há
+ * usuário autenticado. O filtro e o rótulo "Operação" exibidos ao usuário seguem a regra por papel (emitente/destinatário
+ * das filiais) em App\Services\Documents\DocumentOperationRules, como no legado.
  * Expanda listas conforme necessidade fiscal.
  */
 return [

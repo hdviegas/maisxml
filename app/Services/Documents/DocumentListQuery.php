@@ -2,6 +2,7 @@
 
 namespace App\Services\Documents;
 
+use App\Enums\DocumentOperationType;
 use App\Models\Branch;
 use App\Models\FiscalDocument;
 use App\Models\Organization;
@@ -9,7 +10,6 @@ use App\Models\User;
 use App\Support\IssuedPeriod;
 use App\Support\Tenant\Cnpj;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Schema;
 
 final class DocumentListQuery
 {
@@ -96,12 +96,13 @@ final class DocumentListQuery
             }
         }
 
-        if (
-            $filters->operationType !== null
-            && $filters->operationType > 0
-            && Schema::hasColumn('xml', 'operation_type')
-        ) {
-            $query->where('xml.operation_type', $filters->operationType);
+        if ($filters->operationType !== null && $filters->operationType > 0) {
+            $op = DocumentOperationType::tryFrom($filters->operationType);
+            if ($op === null) {
+                $query->whereRaw('1 = 0');
+            } else {
+                DocumentOperationRules::applyFilter($query, $op, self::cnpjDigitsForUser($user));
+            }
         }
 
         // Sargable range on data_nf (DATE): no DATE() wrapper; end is exclusive (day after).

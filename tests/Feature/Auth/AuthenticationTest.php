@@ -73,3 +73,24 @@ test('users can logout', function () {
     $response->assertRedirect('/');
     $this->assertGuest();
 });
+
+test('forced remember flag does not touch the missing remember_token column', function () {
+    expect(Schema::hasColumn('usuario', 'remember_token'))->toBeFalse();
+
+    $user = User::factory()->create(['login' => 'fixture-remember', 'email' => 'remember@example.com']);
+
+    expect($user->getRememberTokenName())->toBe('');
+
+    $response = $this->post('/login', [
+        'login' => 'fixture-remember',
+        'password' => UserFactory::LEGACY_PASSWORD,
+        'remember' => '1',
+    ]);
+
+    $response->assertSessionHasNoErrors()->assertRedirect(route('dashboard', absolute: false));
+    $this->assertAuthenticatedAs($user);
+    expect(collect($response->headers->getCookies())->contains(fn ($c) => str_starts_with($c->getName(), 'remember_web')))->toBeFalse();
+
+    $this->post(route('logout'))->assertRedirect('/');
+    $this->assertGuest();
+});

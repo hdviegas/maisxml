@@ -11,6 +11,7 @@ use App\Http\Controllers\DocumentsIndexController;
 use App\Http\Controllers\DownloadFiscalDocumentController;
 use App\Http\Controllers\ExportDocumentsCsvController;
 use App\Http\Controllers\ExportDocumentsPdfController;
+use App\Http\Controllers\HomeRedirectController;
 use App\Http\Controllers\LookupFiscalDocumentByChaveController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportsPageController;
@@ -19,14 +20,9 @@ use App\Http\Controllers\SettingsPageController;
 use App\Http\Controllers\SpedImportController;
 use App\Http\Controllers\ViewFiscalDocumentXmlController;
 use App\Http\Middleware\ShareTenantLogContext;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Route;
 
-Route::get('/', function (): RedirectResponse {
-    return auth()->check()
-        ? redirect()->route('dashboard')
-        : redirect()->route('login');
-})->name('home');
+Route::get('/', HomeRedirectController::class)->name('home');
 
 Route::middleware(['auth', ShareTenantLogContext::class])->group(function (): void {
     Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->name('logout');

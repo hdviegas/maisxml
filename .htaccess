@@ -1,0 +1,41 @@
+# Mais XML: projeto Laravel inteiro dentro de uma subpasta (ex.: public_html/admin),
+# sem alterar o document root. Funciona em qualquer nome de subpasta (nada hardcoded).
+# O index.php da raiz apenas inclui public/index.php (ver comentário nele).
+
+Options -Indexes -MultiViews
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # --- Bloqueio (403): arquivos sensíveis e código-fonte; public/ NÃO é bloqueado ---
+    # Qualquer arquivo/pasta que comece com ponto (.env, .git, .htaccess, ...)
+    RewriteRule (^|/)\. - [F,L]
+    # Arquivos de configuração/projeto na raiz
+    RewriteRule ^(artisan|composer\.(json|lock)|package(-lock)?\.json|vite\.config\.[^/]+|phpunit\.xml|pint\.json)$ - [F,L]
+    # Qualquer markdown
+    RewriteRule \.md$ - [F,L]
+    # Pastas internas da aplicação
+    RewriteRule ^(app|bootstrap|config|database|docs|lang|resources|routes|storage|tests|vendor|node_modules|scripts)(/|$) - [F,L]
+
+    # Repasse dos headers Authorization e X-XSRF-Token (igual ao public/.htaccess)
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+
+    RewriteCond %{HTTP:x-xsrf-token} .
+    RewriteRule .* - [E=HTTP_X_XSRF_TOKEN:%{HTTP:X-XSRF-Token}]
+
+    # --- Estáticos: se public/<caminho> existir como arquivo, serve-o sem "public" na URL ---
+    # (/admin/build/..., /admin/images/..., /admin/favicon.ico, /admin/robots.txt).
+    # Genérico: para um caminho inexistente na raiz, o Apache define REQUEST_FILENAME como
+    # <pasta do projeto>/<1º segmento da URL>; a 1ª condição extrai <pasta do projeto> (%1)
+    # e a 2ª testa <pasta do projeto>/public/<caminho>. Nunca expõe .php de public/.
+    RewriteCond %{REQUEST_FILENAME} ^(.+)/[^/]+$
+    RewriteCond %1/public/$1 -f
+    RewriteRule ^(?!public/)(?!.*\.php$)(.+)$ public/$1 [L]
+
+    # --- Front controller: tudo que não for arquivo/pasta existente vai para o index.php da raiz ---
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>

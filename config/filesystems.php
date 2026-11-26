@@ -1,5 +1,42 @@
 <?php
 
+// Raiz do disco "local". FILESYSTEM_LOCAL_ROOT aceita caminho absoluto ou relativo ao
+// projeto (ex.: ".." = pasta pai). Vazio/ausente = storage/app/private. O valor é
+// calculado aqui (string pura), então funciona com `php artisan config:cache`.
+$localRoot = (static function (): string {
+    $raw = trim((string) env('FILESYSTEM_LOCAL_ROOT', ''));
+    if ($raw === '') {
+        return storage_path('app/private');
+    }
+
+    $raw = str_replace('\\', '/', $raw);
+    $absolute = str_starts_with($raw, '/') || preg_match('#^[A-Za-z]:/#', $raw) === 1;
+    $path = $absolute ? $raw : str_replace('\\', '/', base_path()).'/'.$raw;
+
+    $real = realpath($path);
+    if ($real !== false) {
+        return rtrim(str_replace('\\', '/', $real), '/') ?: '/';
+    }
+
+    $prefix = str_starts_with($path, '/') ? '/' : '';
+    $parts = [];
+    foreach (explode('/', $path) as $segment) {
+        if ($segment === '' || $segment === '.') {
+            continue;
+        }
+        if ($segment === '..') {
+            if ($parts !== [] && end($parts) !== '..' && ! preg_match('#^[A-Za-z]:$#', end($parts))) {
+                array_pop($parts);
+            }
+
+            continue;
+        }
+        $parts[] = $segment;
+    }
+
+    return $prefix.implode('/', $parts);
+})();
+
 return [
 
     /*
@@ -32,7 +69,7 @@ return [
 
         'local' => [
             'driver' => 'local',
-            'root' => storage_path('app/private'),
+            'root' => $localRoot,
             'serve' => true,
             'throw' => false,
             'report' => false,

@@ -43,6 +43,16 @@ class User extends Authenticatable
         );
     }
 
+    /**
+     * Legacy `usuario` has no remember_token column. An empty name makes
+     * Authenticatable::getRememberToken()/setRememberToken() no-ops, so the
+     * guard never reads or writes the column (incl. SessionGuard::logout()).
+     */
+    public function getRememberTokenName(): string
+    {
+        return '';
+    }
+
     public function getAuthPassword(): string
     {
         return (string) $this->senha;

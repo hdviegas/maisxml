@@ -24,7 +24,6 @@ class AuthenticatedSessionController extends Controller
         $request->validate([
             'login' => ['required', 'string', 'max:255'],
             'password' => ['required', 'string'],
-            'remember' => ['sometimes', 'boolean'],
         ], [], [
             'login' => __('auth.login_username'),
             'password' => __('Password'),
@@ -44,7 +43,8 @@ class AuthenticatedSessionController extends Controller
 
         if ($user !== null && (string) $user->senha === md5($plain)) {
             RateLimiter::clear($this->throttleKey($request));
-            Auth::login($user, $request->boolean('remember'));
+            // Never "remember": legacy `usuario` has no remember_token column.
+            Auth::login($user, false);
 
             $request->session()->regenerate();
 

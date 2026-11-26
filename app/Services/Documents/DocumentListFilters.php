@@ -6,7 +6,8 @@ final class DocumentListFilters
 {
     public function __construct(
         public ?string $q = null,
-        public ?int $branchId = null,
+        /** @var list<int> */
+        public array $branchIds = [],
         public ?int $operationType = null,
         public ?string $issuedFrom = null,
         public ?string $issuedTo = null,
@@ -17,6 +18,29 @@ final class DocumentListFilters
         public ?string $recipientDigits = null,
         public ?string $spedReconcile = null,
     ) {}
+
+    /**
+     * Accepts a scalar id, a list of ids, or garbage; returns unique positive ints.
+     *
+     * @return list<int>
+     */
+    public static function parseBranchIds(mixed $raw): array
+    {
+        $ids = [];
+        foreach (is_array($raw) ? $raw : [$raw] as $v) {
+            if ((is_string($v) || is_int($v)) && ctype_digit((string) $v) && (int) $v > 0 && strlen((string) $v) <= 18) {
+                $ids[] = (int) $v;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /** True when the branch filter was sent (even if every id was invalid/foreign). */
+    public function hasBranchFilter(): bool
+    {
+        return $this->branchIds !== [];
+    }
 
     /** Digits-only form of the free-text search term. */
     public function qDigits(): string
@@ -43,7 +67,7 @@ final class DocumentListFilters
 
         $numero = $query['numero'] ?? null;
         $serie = $query['serie'] ?? null;
-        $branchId = $query['branch_id'] ?? null;
+        $branchIds = self::parseBranchIds($query['branch_id'] ?? null);
 
         $rec = $query['sped_reconcile'] ?? null;
         $rec = is_string($rec) && in_array($rec, ['diff', 'ok', 'none', 'unknown'], true) ? $rec : null;
@@ -56,7 +80,7 @@ final class DocumentListFilters
 
         return new self(
             q: isset($query['q']) ? (string) $query['q'] : null,
-            branchId: ($branchId !== null && $branchId !== '' && ctype_digit((string) $branchId)) ? (int) $branchId : null,
+            branchIds: $branchIds,
             operationType: $opInt,
             issuedFrom: ! empty($query['issued_from']) ? (string) $query['issued_from'] : null,
             issuedTo: ! empty($query['issued_to']) ? (string) $query['issued_to'] : null,
@@ -76,7 +100,7 @@ final class DocumentListFilters
     {
         return array_filter([
             'q' => $this->q,
-            'branch_id' => $this->branchId,
+            'branch_id' => $this->branchIds,
             'operation_type' => $this->operationType,
             'issued_from' => $this->issuedFrom,
             'issued_to' => $this->issuedTo,

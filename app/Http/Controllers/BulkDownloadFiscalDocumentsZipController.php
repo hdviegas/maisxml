@@ -31,7 +31,7 @@ class BulkDownloadFiscalDocumentsZipController extends Controller
         $disk = Storage::disk('local');
         $missing = $docs->first(fn (FiscalDocument $d) => ! $disk->exists($d->storage_path));
         if ($missing !== null) {
-            abort(404, 'storage_missing');
+            abort(404, 'Arquivo XML não encontrado no armazenamento.');
         }
 
         $activityLog->record(
@@ -50,7 +50,7 @@ class BulkDownloadFiscalDocumentsZipController extends Controller
         $zipPath = $tempDir.'/'.Str::uuid().'.zip';
         $zip = new ZipArchive;
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-            abort(500, 'zip_failed');
+            abort(500, 'Não foi possível gerar o arquivo ZIP.');
         }
 
         foreach ($docs as $doc) {

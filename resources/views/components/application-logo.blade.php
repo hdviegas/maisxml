@@ -9,7 +9,7 @@
     $alt = (string) config('app.name', 'Mais XML');
     $defaultClass = $variant === 'footer'
         ? 'block w-auto max-w-full object-contain object-left sm:h-6'
-        : 'block w-auto max-w-full object-contain object-left sm:h-9';
+        : 'block w-auto max-w-full object-contain object-left';
 @endphp
 
 <img

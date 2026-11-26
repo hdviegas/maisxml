@@ -31,7 +31,12 @@ paths:
           schema: { type: string }
         - name: branch_id
           in: query
-          schema: { type: integer }
+          description: Filtra por uma ou mais filiais (`branch_id=1` ou `branch_id[]=1&branch_id[]=2`). Notas em que o CNPJ de qualquer filial informada é emitente ou destinatário. Filiais de outras organizações e valores inválidos são ignorados; se nenhum id for válido, o resultado é vazio.
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: integer }
         - name: operation_type
           in: query
           schema: { type: integer, minimum: 1, maximum: 5 }

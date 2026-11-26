@@ -1,7 +1,8 @@
 @php
+    $selectedBranchIds = \App\Services\Documents\DocumentListFilters::parseBranchIds(request('branch_id'));
     $exportParams = array_filter([
         'q' => request('q'),
-        'branch_id' => request('branch_id'),
+        'branch_id' => $selectedBranchIds,
         'operation_type' => request('operation_type'),
         'issued_from' => $issuedFrom,
         'issued_to' => $issuedTo,
@@ -11,7 +12,7 @@
         'emitter' => request('emitter'),
         'recipient' => request('recipient'),
         'sped_reconcile' => request('sped_reconcile'),
-    ], fn ($v) => $v !== null && $v !== '');
+    ], fn ($v) => $v !== null && $v !== '' && $v !== []);
     $activeFiltersCount = count($exportParams) - ($periodIsDefault ? 2 : 0);
     $advancedFilterKeys = ['numero', 'serie', 'modelo', 'emitter', 'recipient', 'sped_reconcile'];
     $advancedActiveCount = collect($advancedFilterKeys)
@@ -36,14 +37,20 @@
                     {{ session('status') }}
                 </div>
             @endif
+            @if ($errors->has('ids'))
+                <div class="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-900"
+                    role="alert">
+                    {{ $errors->first('ids') }}
+                </div>
+            @endif
 
             <div class="space-y-6">
 
-                <form method="get" action="{{ route('documents.index') }}" class="mx-card overflow-hidden p-0" id="doc-filters-form">
-                    <div class="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5">
+                <form method="get" action="{{ route('documents.index') }}" class="mx-card p-0" id="doc-filters-form">
+                    <div class="flex flex-wrap items-center justify-between gap-2 rounded-t-2xl border-b border-slate-100 bg-slate-50/60 px-4 py-2.5">
                         <div class="flex items-center gap-2">
                             <p class="mx-section-title">Filtros</p>
-                            <span class="mx-chip mx-chip--accent px-2 py-0.5 tabular-nums">{{ $activeFiltersCount }} ativos</span>
+                            <span class="mx-chip mx-chip--accent px-2 py-0.5 tabular-nums">{{ $activeFiltersCount }} {{ $activeFiltersCount === 1 ? 'ativo' : 'ativos' }}</span>
                         </div>
                         <div class="flex items-center gap-2">
                             <a href="{{ route('documents.export.csv', $exportParams) }}" class="mx-btn-xs">
@@ -58,7 +65,7 @@
                     </div>
 
                     <div class="space-y-3 px-4 py-3">
-                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[9.5rem_9.5rem_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.4fr)_auto] lg:items-end">
+                        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-[9.5rem_9.5rem_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1.2fr)_auto] lg:items-end">
                             <div>
                                 <label for="doc-issued-from" class="mx-label">{{ __('documents.filter_issued_from') }}</label>
                                 <input id="doc-issued-from" type="date" name="issued_from" value="{{ $issuedFrom }}"
@@ -71,10 +78,11 @@
                             </div>
                             <div>
                                 <label for="doc-branch" class="mx-label">{{ __('documents.filter_branch') }}</label>
-                                <select id="doc-branch" name="branch_id" class="mx-select-sm">
-                                    <option value="">{{ __('All') }}</option>
+                                <select id="doc-branch" name="branch_id[]" multiple data-multiselect
+                                    data-placeholder="Todas as filiais" data-summary-singular="filial selecionada"
+                                    data-summary-plural="filiais selecionadas" class="mx-select-sm">
                                     @foreach ($branches as $b)
-                                        <option value="{{ $b->id }}" @selected((string) request('branch_id') === (string) $b->id)>
+                                        <option value="{{ $b->id }}" @selected(in_array((int) $b->id, $selectedBranchIds, true))>
                                             {{ $b->name }}</option>
                                     @endforeach
                                 </select>
@@ -167,6 +175,11 @@
                             <button type="submit" class="mx-btn-primary mx-btn-sm" title="{{ __('documents.bulk_zip_hint') }}">
                                 <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
                                 {{ __('documents.bulk_zip') }}
+                            </button>
+                            <button type="submit" class="mx-btn-secondary mx-btn-sm" formaction="{{ route('documents.bulk_danfe') }}" formtarget="_blank"
+                                title="{{ __('documents.bulk_danfe_hint') }}">
+                                <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0 1 10.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0 .229 2.523a1.125 1.125 0 0 1-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0 0 21 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 0 0-1.913-.247M6.34 18H5.25A2.25 2.25 0 0 1 3 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 0 1 1.913-.247m10.5 0a48.536 48.536 0 0 0-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.659M18 10.5h.008v.008H18V10.5Zm-3 0h.008v.008H15V10.5Z" /></svg>
+                                {{ __('documents.bulk_danfe') }}
                             </button>
                         </div>
                     </div>
@@ -278,6 +291,16 @@
 
     <script>
         (() => {
+            const bulkForm = document.getElementById('bulk-zip-form');
+            if (bulkForm) {
+                bulkForm.addEventListener('submit', (event) => {
+                    if (!bulkForm.querySelector('input[name="ids[]"]:checked')) {
+                        event.preventDefault();
+                        window.alert(@js(__('documents.bulk_select_none')));
+                    }
+                });
+            }
+
             const selectAll = document.getElementById('select-all-docs');
             const rowChecks = Array.from(document.querySelectorAll('input[name="ids[]"]'));
             if (selectAll) {
@@ -309,7 +332,7 @@
 
             document.querySelectorAll('.js-confirm-delete').forEach((form) => {
                 form.addEventListener('submit', (event) => {
-                    const message = form.getAttribute('data-confirm-message') || 'Confirmar exclusao?';
+                    const message = form.getAttribute('data-confirm-message') || 'Confirmar exclusão?';
                     if (!window.confirm(message)) {
                         event.preventDefault();
                     }

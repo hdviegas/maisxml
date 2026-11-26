@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\BulkDownloadFiscalDocumentsZipController;
+use App\Http\Controllers\BulkPrintDanfeFiscalDocumentsController;
 use App\Http\Controllers\DanfeFiscalDocumentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DestroyFiscalDocumentController;
@@ -47,6 +48,7 @@ Route::middleware(['auth', ShareTenantLogContext::class])->group(function (): vo
     Route::get('documentos/exportar/csv', ExportDocumentsCsvController::class)->name('documents.export.csv');
     Route::get('documentos/exportar/pdf', ExportDocumentsPdfController::class)->name('documents.export.pdf');
     Route::post('documentos/baixar-zip', BulkDownloadFiscalDocumentsZipController::class)->name('documents.bulk_zip');
+    Route::post('documentos/imprimir-danfe', BulkPrintDanfeFiscalDocumentsController::class)->name('documents.bulk_danfe');
     Route::get('documentos/{fiscalDocument}/xml', ViewFiscalDocumentXmlController::class)->name('documents.view_xml');
     Route::get('documentos/{fiscalDocument}/danfe', DanfeFiscalDocumentController::class)->name('documents.danfe');
     Route::get('documentos/{fiscalDocument}/baixar', DownloadFiscalDocumentController::class)

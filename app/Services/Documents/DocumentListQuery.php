@@ -74,15 +74,25 @@ final class DocumentListQuery
             }
         }
 
-        if ($filters->branchId) {
-            $branch = Branch::query()->find($filters->branchId);
-            if ($branch !== null) {
-                $c = Cnpj::digits((string) $branch->cnpj);
-                if ($c !== '') {
-                    $query->where(function (Builder $q) use ($c): void {
-                        $q->where('xml.cnpj_emit', $c)->orWhere('xml.cnpj_dest', $c);
-                    });
-                }
+        if ($filters->branchIds !== []) {
+            // Only branches of the user's own organizations count: foreign ids are ignored.
+            $orgIds = Organization::query()->forUser($user)->pluck('id');
+            $digits = $orgIds->isEmpty() ? [] : Branch::query()
+                ->whereIn('empresa', $orgIds)
+                ->whereIn('codigo', $filters->branchIds)
+                ->pluck('cnpj')
+                ->map(fn ($c) => Cnpj::digits((string) $c))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            if ($digits === []) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->where(function (Builder $q) use ($digits): void {
+                    $q->whereIn('xml.cnpj_emit', $digits)->orWhereIn('xml.cnpj_dest', $digits);
+                });
             }
         }
 

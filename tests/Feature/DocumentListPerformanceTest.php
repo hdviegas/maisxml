@@ -35,7 +35,7 @@ test('list SQL has no REPLACE or DATE wrappers', function () {
     $user = dlp_setup();
     $q = DocumentListQuery::forUser($user);
     DocumentListQuery::applyFilters($q, new DocumentListFilters(
-        branchId: Branch::query()->value('codigo'),
+        branchIds: [(int) Branch::query()->value('codigo')],
         issuedFrom: '2026-01-01',
         issuedTo: '2026-01-31',
         spedReconcile: 'ok',

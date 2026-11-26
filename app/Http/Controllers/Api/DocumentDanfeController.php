@@ -32,7 +32,7 @@ class DocumentDanfeController extends Controller
         try {
             $pdf = $danfeGenerator->pdfBinary($xml, $modelo);
         } catch (Throwable) {
-            abort(422, 'danfe_generation_failed');
+            abort(422, 'Não foi possível gerar a DANFE deste documento.');
         }
 
         $activityLog->record(

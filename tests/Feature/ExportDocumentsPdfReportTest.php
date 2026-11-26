@@ -23,7 +23,7 @@ function pdfr_tenant(string $cnpj, string $name, string $email): array
 
 function pdfr_doc(string $fill, string $emit, string $dest, ?string $cfop = '5102'): FiscalDocument
 {
-    return FiscalDocument::query()->create([
+    return FiscalDocument::query()->create(legacy_xml_row([
         'url' => 'pdfr_x',
         'chave' => strlen($fill) > 1
             ? substr(chave_for('1', $emit), 0, 20).str_pad($fill, 24, '0', STR_PAD_LEFT)
@@ -38,7 +38,7 @@ function pdfr_doc(string $fill, string $emit, string $dest, ?string $cfop = '510
         'modelo_nf' => '55',
         'numero_nf' => (int) substr($fill, -4),
         'serie_nf' => 1,
-    ]);
+    ]));
 }
 
 function pdfr_count_queries(callable $fn): int

@@ -338,3 +338,17 @@ function sample_nfe_event_xml(
 </procEventoNFe>
 XML;
 }
+
+/**
+ * Legacy `xml` row with values for every NOT NULL column (prod schema is strict), overridable per test.
+ *
+ * @param  array<string, mixed>  $attrs
+ * @return array<string, mixed>
+ */
+function legacy_xml_row(array $attrs): array
+{
+    return array_merge([
+        'url' => 'x', 'empresa' => '', 'social' => '', 'dest' => '', 'tipo' => '', 'ip' => '127.0.0.1',
+        'numero_nf' => 0, 'total_nf' => 0, 'total_icms' => 0, 'total_frete' => 0,
+    ], $attrs);
+}

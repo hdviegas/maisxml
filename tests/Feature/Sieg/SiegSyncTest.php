@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\OnDuplicateImport;
 use App\Models\Branch;
 use App\Models\FiscalDocument;
 use App\Models\Organization;
@@ -9,6 +10,7 @@ use App\Services\Nfe\NfeImportService;
 use App\Services\Sieg\SiegSyncService;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Sleep;
@@ -265,7 +267,8 @@ test('routes events, foreign, duplicate, CT-e and malformed documents', function
         sample_nfe_event_xml($chave),
         sync_note('3', SYNC_OTHER),
         $dupXml,
-        '<?xml version="1.0"?><cteProc><CTe><infCte Id="CTe1"><x/></infCte></CTe></cteProc>',
+        // CT-e real referencia as NF-e transportadas em infDoc/infNFe: não pode ser tratado como NF-e.
+        '<?xml version="1.0"?><cteProc><CTe><infCte Id="CTe1"><infCTeNorm><infDoc><infNFe><chave>'.$chave.'</chave></infNFe></infDoc></infCTeNorm></infCte></CTe></cteProc>',
         '<?xml version="1.0"?><nfeProc><NFe><infNFe Id="NFe1"><unclosed></NFe></nfeProc>',
     ];
     sync_fake_nsu(1, 6, fn () => $docs);
@@ -479,4 +482,29 @@ test('paused accounts are skipped unless forced; disabled never run', function (
     expect(($this->service)()->sync($disabled, ($this->deadline)(), true)->status)->toBe('skipped');
     expect(($this->service)()->sync($disabled, ($this->deadline)())->message)->toContain('desabilitada');
     expect($disabled->fresh()->last_run_at)->toBeNull();
+});
+
+test('import satisfies the strict legacy xml schema (NFC-e without recipient and NF-e)', function () {
+    $org = sync_org();
+    $service = app(NfeImportService::class);
+
+    $nfce = $service->importForOrganization($org->id, sample_nfce_xml(sync_chave('5'), SYNC_ORG))->document;
+    $nfe = $service->importForOrganization($org->id, sample_nfe_xml(sync_chave('6'), SYNC_ORG, SYNC_SUP))->document;
+
+    $row = fn ($doc) => (array) DB::table('xml')->where('id', $doc->id)->first();
+    $a = $row($nfce);
+    $b = $row($nfe);
+
+    expect($a['dest'])->toBe('')->and($a['tipo'])->toBe('')
+        ->and($a['social'])->toBe('Emitente NFC-e Teste')
+        ->and((float) $a['total_frete'])->toBe(0.0)
+        ->and((float) $a['total_icms'])->toBe(1.8)
+        ->and($a['ip'])->not->toBeNull();
+    expect($b['dest'])->toBe(SYNC_SUP)->and($b['tipo'])->toBe('')
+        ->and((float) $b['total_icms'])->toBe(18.0)
+        ->and(is_numeric($b['total_frete']))->toBeTrue();
+
+    // Replace path must satisfy the schema too.
+    $replaced = $service->importForOrganization($org->id, sample_nfce_xml(sync_chave('5'), SYNC_ORG), OnDuplicateImport::Replace);
+    expect($replaced->result)->toBe('replaced');
 });

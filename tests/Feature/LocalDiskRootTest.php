@@ -20,10 +20,10 @@ test('download finds xml_entrada file when local disk root is reconfigured', fun
     expect(file_exists($root.'/'.$path))->toBeTrue();
 
     $doc = FiscalDocument::query()->create([
-        'url' => $path, 'chave' => $chave, 'empresa' => $emitter, 'social' => null, 'dest' => null,
+        'url' => $path, 'chave' => $chave, 'empresa' => $emitter, 'social' => '', 'dest' => '', 'tipo' => '',
         'data_nf' => now(), 'ip' => '127.0.0.1', 'cnpj_emit' => $emitter, 'cnpj_dest' => '12345678901',
         'social_emit' => null, 'social_dest' => null, 'numero_nf' => 98, 'modelo_nf' => '55', 'serie_nf' => '1',
-        'total_nf' => '10.00', 'total_icms' => null, 'total_icms_st' => null, 'total_frete' => null,
+        'total_nf' => '10.00', 'total_icms' => 0, 'total_icms_st' => null, 'total_frete' => 0,
         'cfop_nf' => '5102', 'cancelada' => false, 'sped' => null,
     ]);
 
@@ -109,10 +109,10 @@ test('download works for xml/ document when root is a relative path to a temp fo
     expect(file_exists($tmp.'/'.$path))->toBeTrue();
 
     $doc = FiscalDocument::query()->create([
-        'url' => $path, 'chave' => $chave, 'empresa' => $emitter, 'social' => null, 'dest' => null,
+        'url' => $path, 'chave' => $chave, 'empresa' => $emitter, 'social' => '', 'dest' => '', 'tipo' => '',
         'data_nf' => now(), 'ip' => '127.0.0.1', 'cnpj_emit' => $emitter, 'cnpj_dest' => '12345678901',
         'social_emit' => null, 'social_dest' => null, 'numero_nf' => 99, 'modelo_nf' => '55', 'serie_nf' => '1',
-        'total_nf' => '10.00', 'total_icms' => null, 'total_icms_st' => null, 'total_frete' => null,
+        'total_nf' => '10.00', 'total_icms' => 0, 'total_icms_st' => null, 'total_frete' => 0,
         'cfop_nf' => '5102', 'cancelada' => false, 'sped' => null,
     ]);
 

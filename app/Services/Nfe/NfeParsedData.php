@@ -17,5 +17,8 @@ readonly class NfeParsedData
         public ?string $total,
         public ?string $cfop,
         public ?string $cStat = null,
+        public ?string $emitterName = null,
+        public ?string $totalIcms = null,
+        public ?string $totalFrete = null,
     ) {}
 }

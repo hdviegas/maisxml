@@ -108,11 +108,11 @@ test('bulk danfe keeps per-document page sizes when mixing nfe and nfce', functi
     $chave = chave_for('a', BDF_CNPJ_A);
     $path = 'xml/'.BDF_CNPJ_A.'/bdf/'.$chave.'.xml';
     Storage::disk('local')->put($path, sample_nfce_xml($chave, BDF_CNPJ_A));
-    $nfce = FiscalDocument::query()->create([
+    $nfce = FiscalDocument::query()->create(legacy_xml_row([
         'url' => $path, 'chave' => $chave, 'empresa' => BDF_CNPJ_A, 'data_nf' => now(), 'ip' => '127.0.0.1',
         'cnpj_emit' => BDF_CNPJ_A, 'numero_nf' => 1, 'modelo_nf' => '65', 'serie_nf' => '1', 'total_nf' => '10.00',
         'cfop_nf' => '5102', 'cancelada' => false,
-    ]);
+    ]));
 
     $response = $this->actingAs($a['user'])->post(route('documents.bulk_danfe'), ['ids' => [$nfe->id, $nfce->id]]);
     $response->assertOk();

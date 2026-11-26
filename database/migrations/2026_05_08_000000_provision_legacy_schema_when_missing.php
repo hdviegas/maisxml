@@ -44,28 +44,33 @@ return new class extends Migration
         });
 
         Schema::create('xml', function (Blueprint $table) {
+            // Mirrors production `xml` (MySQL 5.7 strict): NOT NULL columns have no implicit default.
             $table->id();
-            $table->text('url');
+            $table->string('url', 500);
+            $table->timestamp('data_up')->useCurrent();
+            $table->string('empresa', 20);
+            $table->string('social', 200);
             $table->string('chave', 44)->unique();
-            $table->string('empresa', 32)->nullable();
-            $table->string('social')->nullable();
-            $table->string('dest', 32)->nullable();
-            $table->dateTime('data_nf')->nullable();
-            $table->string('ip', 45)->nullable();
-            $table->string('cnpj_emit', 32)->nullable();
-            $table->string('cnpj_dest', 32)->nullable();
-            $table->string('social_emit')->nullable();
-            $table->string('social_dest')->nullable();
-            $table->string('numero_nf', 32)->nullable();
-            $table->string('modelo_nf', 8)->nullable();
-            $table->string('serie_nf', 16)->nullable();
-            $table->decimal('total_nf', 15, 2)->nullable();
-            $table->decimal('total_icms', 15, 2)->nullable();
-            $table->decimal('total_icms_st', 15, 2)->nullable();
-            $table->decimal('total_frete', 15, 2)->nullable();
-            $table->string('cfop_nf', 16)->nullable();
-            $table->boolean('cancelada')->default(false);
-            $table->string('sped', 32)->nullable();
+            $table->bigInteger('downs')->nullable()->default(0);
+            $table->string('dest', 30);
+            $table->date('data_nf')->nullable();
+            $table->string('ip', 40);
+            $table->date('sped')->nullable();
+            $table->integer('cancelada')->default(0);
+            $table->string('social_dest', 100)->nullable();
+            $table->string('social_emit', 100)->nullable();
+            $table->string('cnpj_emit', 20)->nullable();
+            $table->string('cnpj_dest', 20)->nullable();
+            $table->string('manifestado_dest', 10)->nullable();
+            $table->string('tipo', 5);
+            $table->integer('numero_nf');
+            $table->integer('modelo_nf')->nullable();
+            $table->float('total_nf');
+            $table->float('total_icms');
+            $table->float('total_icms_st')->nullable();
+            $table->float('total_frete');
+            $table->string('serie_nf', 5)->nullable();
+            $table->string('cfop_nf', 4)->nullable();
         });
 
         Schema::create('sped', function (Blueprint $table) {

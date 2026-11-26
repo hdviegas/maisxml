@@ -69,12 +69,17 @@ class NfeXmlParser
         $emitterCnpj = $this->firstText($xpath, './/*[local-name() = \'CNPJ\']', $emit)
             ?? $this->firstText($xpath, './/*[local-name() = \'CPF\']', $emit);
 
+        $emitterName = $this->firstText($xpath, './*[local-name() = \'xNome\']', $emit);
+
         $dest = $xpath->query('.//*[local-name() = \'dest\']', $inf)->item(0);
         $recipientDoc = $this->firstText($xpath, './/*[local-name() = \'CNPJ\']', $dest)
             ?? $this->firstText($xpath, './/*[local-name() = \'CPF\']', $dest);
 
         $totalNode = $xpath->query('.//*[local-name() = \'ICMSTot\']', $inf)->item(0);
         $vNF = $this->firstText($xpath, './/*[local-name() = \'vNF\']', $totalNode ?? $inf);
+
+        $vIcms = $this->firstText($xpath, './/*[local-name() = \'vICMS\']', $totalNode);
+        $vFrete = $this->firstText($xpath, './/*[local-name() = \'vFrete\']', $totalNode);
 
         $cfop = null;
         $dets = $xpath->query('.//*[local-name() = \'det\']', $inf);
@@ -99,6 +104,9 @@ class NfeXmlParser
             total: $vNF,
             cfop: $cfop,
             cStat: $cStat,
+            emitterName: $emitterName,
+            totalIcms: $vIcms,
+            totalFrete: $vFrete,
         );
     }
 

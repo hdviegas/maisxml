@@ -31,6 +31,7 @@ class FiscalDocument extends Model
         'empresa',
         'social',
         'dest',
+        'tipo',
         'data_nf',
         'ip',
         'cnpj_emit',

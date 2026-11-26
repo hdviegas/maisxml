@@ -136,6 +136,17 @@ class NfeImportService
         }
     }
 
+    /**
+     * Legacy `xml.social` is NOT NULL varchar(200) in a latin1 table: emitter name, or '' when
+     * unknown. Characters outside latin1 would make strict-mode MySQL reject the whole insert.
+     */
+    private function legacySocial(NfeParsedData $parsed): string
+    {
+        $name = (string) preg_replace('/[^\x{0000}-\x{00FF}]/u', '?', $parsed->emitterName ?? '');
+
+        return mb_substr($name, 0, 200);
+    }
+
     private function createDocument(
         Branch $branch,
         string $xmlBody,
@@ -164,21 +175,22 @@ class NfeImportService
                 'url' => $relative,
                 'chave' => $parsed->chave,
                 'empresa' => $emitter,
-                'social' => null,
-                'dest' => $parsed->recipientDoc,
+                'social' => $this->legacySocial($parsed),
+                'dest' => $parsed->recipientDoc ?? '',
+                'tipo' => '',
                 'data_nf' => $parsed->issuedAt,
-                'ip' => request()->ip(),
+                'ip' => request()->ip() ?? '',
                 'cnpj_emit' => $parsed->emitterCnpj,
                 'cnpj_dest' => $parsed->recipientDoc,
                 'social_emit' => null,
                 'social_dest' => null,
-                'numero_nf' => $parsed->numero,
+                'numero_nf' => $parsed->numero ?? 0,
                 'modelo_nf' => $parsed->modelo,
                 'serie_nf' => $parsed->serie,
-                'total_nf' => $parsed->total,
-                'total_icms' => null,
+                'total_nf' => $parsed->total ?? 0,
+                'total_icms' => $parsed->totalIcms ?? 0,
                 'total_icms_st' => null,
-                'total_frete' => null,
+                'total_frete' => $parsed->totalFrete ?? 0,
                 'cfop_nf' => $parsed->cfop,
                 'cancelada' => $this->isCancelledStat($parsed->cStat),
             ], $extra));
@@ -228,20 +240,21 @@ class NfeImportService
             $existing->update(array_merge([
                 'url' => $relative,
                 'empresa' => $emitter,
-                'social' => null,
-                'dest' => $parsed->recipientDoc,
+                'social' => $this->legacySocial($parsed),
+                'dest' => $parsed->recipientDoc ?? '',
+                'tipo' => '',
                 'data_nf' => $parsed->issuedAt,
                 'cnpj_emit' => $parsed->emitterCnpj,
                 'cnpj_dest' => $parsed->recipientDoc,
                 'social_emit' => null,
                 'social_dest' => null,
-                'numero_nf' => $parsed->numero,
+                'numero_nf' => $parsed->numero ?? 0,
                 'modelo_nf' => $parsed->modelo,
                 'serie_nf' => $parsed->serie,
-                'total_nf' => $parsed->total,
-                'total_icms' => null,
+                'total_nf' => $parsed->total ?? 0,
+                'total_icms' => $parsed->totalIcms ?? 0,
                 'total_icms_st' => null,
-                'total_frete' => null,
+                'total_frete' => $parsed->totalFrete ?? 0,
                 'cfop_nf' => $parsed->cfop,
                 'cancelada' => $this->isCancelledStat($parsed->cStat),
             ], $extra));

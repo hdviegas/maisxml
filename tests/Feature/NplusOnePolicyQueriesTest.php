@@ -22,13 +22,13 @@ function npq_tenant(string $cnpj, string $email): User
 
 function npq_doc(string $fill, string $emit, string $dest): FiscalDocument
 {
-    return FiscalDocument::query()->create([
+    return FiscalDocument::query()->create(legacy_xml_row([
         'url' => 'x',
         'chave' => chave_for($fill, $emit),
         'data_nf' => now()->toDateString(),
         'cnpj_emit' => $emit,
         'cnpj_dest' => $dest,
-    ]);
+    ]));
 }
 
 function npq_page_queries(User $user): int

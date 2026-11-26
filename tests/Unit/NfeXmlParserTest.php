@@ -31,3 +31,15 @@ test('parser rejects empty xml', function () {
     $parser = new NfeXmlParser;
     $parser->parse('');
 })->throws(InvalidArgumentException::class);
+
+test('parser extracts emitter name, icms total and freight from ICMSTot', function () {
+    $nfe = (new NfeXmlParser)->parse(sample_nfe_xml(str_repeat('3', 44)));
+    $nfce = (new NfeXmlParser)->parse(sample_nfce_xml(str_repeat('2', 44)));
+
+    expect($nfe->emitterName)->toBe('Emitente Demonstracao LTDA')
+        ->and($nfe->totalIcms)->toBe('18.00')
+        ->and($nfe->totalFrete)->toBe('0.00')
+        ->and($nfce->emitterName)->toBe('Emitente NFC-e Teste')
+        ->and($nfce->totalIcms)->toBe('1.80')
+        ->and($nfce->recipientDoc)->toBeNull();
+});

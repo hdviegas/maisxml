@@ -116,6 +116,7 @@ class SiegSyncService
             $status = 'failed';
             $message = class_basename($e).($e->httpStatus ? " (HTTP {$e->httpStatus})" : '');
         } catch (Throwable $e) {
+            Log::error('sieg.sync.failed', ['account_id' => $account->id, 'exception' => $e]);
             $status = 'failed';
             $message = $e instanceof RuntimeException && $e->getMessage() === 'storage_failed'
                 ? 'Falha ao gravar o XML no armazenamento (storage_failed)'
@@ -388,7 +389,8 @@ class SiegSyncService
                 return 'event';
             }
 
-            return $xpath->query("//*[local-name()='infNFe']")->length > 0 ? 'nfe' : 'other';
+            // Só infNFe filho de <NFe>: o CT-e também tem infDoc/infNFe (referência às notas transportadas).
+            return $xpath->query("//*[local-name()='NFe']/*[local-name()='infNFe']")->length > 0 ? 'nfe' : 'other';
         } finally {
             libxml_clear_errors();
             libxml_use_internal_errors($previous);

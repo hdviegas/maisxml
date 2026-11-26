@@ -22,13 +22,13 @@ function dlp_setup(): User
 
 function dlp_doc(string $fill, string $dataNf, string $dest = DLP_CNPJ): FiscalDocument
 {
-    return FiscalDocument::query()->create([
+    return FiscalDocument::query()->create(legacy_xml_row([
         'url' => 'x',
         'chave' => chave_for($fill, DLP_SUPPLIER),
         'data_nf' => $dataNf,
         'cnpj_emit' => DLP_SUPPLIER,
         'cnpj_dest' => $dest,
-    ]);
+    ]));
 }
 
 test('list SQL has no REPLACE or DATE wrappers', function () {

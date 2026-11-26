@@ -35,7 +35,14 @@ class SiegSyncRunner
     public function runAccounts(Collection $accounts, CarbonInterface $deadline, bool $force = false): array
     {
         $results = [];
-        foreach ($accounts as $account) {
+        // Contas "compras" primeiro: fazem 1-2 requisições (baixar-xmls, 2/min) e deixam o resto
+        // do prazo para o NSU, que senão consumiria a rodada inteira.
+        $ordered = $accounts->sortBy([
+            fn (SiegAccount $a, SiegAccount $b) => ($b->mode === SiegAccount::MODE_COMPRAS) <=> ($a->mode === SiegAccount::MODE_COMPRAS),
+            ['id', 'asc'],
+        ]);
+
+        foreach ($ordered as $account) {
             $results[] = ['account' => $account, 'run' => $this->service->sync($account, $deadline, $force)];
         }
 

@@ -8,9 +8,11 @@ use App\Models\SiegAccount;
 use App\Models\SiegSyncCursor;
 use App\Models\SiegSyncRun;
 use App\Services\Nfe\NfeImportService;
+use App\Services\Sieg\SiegSyncRunner;
 use App\Services\Sieg\SiegSyncService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -444,6 +446,100 @@ test('periodo/branch: one cursor per branch x role with Cnpj filters', function 
     foreach (sync_requests('/baixar-xmls') as $r) {
         expect(isset($r->data()['CnpjDest'], $r->data()['CnpjEmit']))->toBeFalse();
     }
+});
+
+// ----------------------------------------------------------------- compras
+
+test('compras: only dest x NF-e cursors per branch, independent of periodo_scope and tipos_xml', function () {
+    $org = sync_org(SYNC_ORG, [SYNC_ORG_B2]);
+    $account = sync_account($org, ['mode' => 'compras']);
+    config(['sieg.sync.periodo_scope' => 'account', 'sieg.sync.tipos_xml' => [1, 4], 'sieg.sync.compras_initial_lookback_hours' => 48, 'sieg.sync.window_hours' => 48]);
+    Http::fake(['*/create-jwt' => Http::response('jwt', 200), '*/baixar-xmls' => Http::response('', 404)]);
+
+    $run = ($this->service)()->sync($account, ($this->deadline)());
+
+    $reqs = sync_requests('/baixar-xmls');
+    $cnpjs = array_map(fn (Request $r) => $r->data()['CnpjDest'], $reqs);
+    sort($cnpjs);
+    expect($run->status)->toBe('ok')->and($run->requests)->toBe(2)
+        ->and($cnpjs)->toBe([SYNC_ORG, SYNC_ORG_B2])
+        ->and(SiegSyncCursor::query()->where('role', 'dest')->where('tipo_xml', 1)->count())->toBe(2)
+        ->and(SiegSyncCursor::query()->count())->toBe(2);
+    foreach ($reqs as $r) {
+        $d = $r->data();
+        expect($d['TipoXml'])->toBe(1)->and(isset($d['CnpjEmit']))->toBeFalse()->and($d['BaixarEventos'])->toBeTrue();
+    }
+});
+
+test('compras: cursors rotate, the most outdated branch is queried first', function () {
+    $org = sync_org(SYNC_ORG, [SYNC_ORG_B2]);
+    $account = sync_account($org, ['mode' => 'compras']);
+    // Primeira filial em dia, segunda atrasada: a segunda deve ser consultada primeiro.
+    SiegSyncCursor::query()->create(['sieg_account_id' => $account->id, 'cnpj' => SYNC_ORG, 'role' => 'dest', 'tipo_xml' => 1, 'synced_until' => now()->subMinute()]);
+    SiegSyncCursor::query()->create(['sieg_account_id' => $account->id, 'cnpj' => SYNC_ORG_B2, 'role' => 'dest', 'tipo_xml' => 1, 'synced_until' => now()->subHours(3)]);
+    Http::fake(['*/create-jwt' => Http::response('jwt', 200), '*/baixar-xmls' => Http::response('', 404)]);
+
+    ($this->service)()->sync($account, ($this->deadline)());
+
+    $first = sync_requests('/baixar-xmls')[0]->data();
+    expect($first['CnpjDest'])->toBe(SYNC_ORG_B2);
+});
+
+test('compras: new cursor looks back compras_initial_lookback_hours and imports documents', function () {
+    $org = sync_org();
+    $account = sync_account($org, ['mode' => 'compras']);
+    config(['sieg.sync.compras_initial_lookback_hours' => 6, 'sieg.sync.window_hours' => 24]);
+    $seen = [];
+    Http::fake([
+        '*/create-jwt' => Http::response('jwt', 200),
+        '*/baixar-xmls' => function (Request $r) use (&$seen) {
+            $seen[] = $r->data();
+
+            return count($seen) === 1
+                ? Http::response(sync_zip([sync_note('1', SYNC_ORG)]))
+                : Http::response('', 404);
+        },
+    ]);
+
+    $run = ($this->service)()->sync($account, ($this->deadline)());
+
+    $start = Carbon::parse($seen[0]['DataUploadInicio']);
+    $end = Carbon::parse($seen[0]['DataUploadFim']);
+    expect($run->status)->toBe('ok')
+        ->and($start->equalTo(now()->subHours(6)))->toBeTrue()
+        ->and($end->equalTo(now()))->toBeTrue()
+        ->and($seen[0]['CnpjDest'])->toBe(SYNC_ORG)
+        ->and($run->imported)->toBe(1)
+        ->and(FiscalDocument::query()->count())->toBe(1);
+});
+
+test('runner: compras account runs before nsu and both run in one call', function () {
+    $org = sync_org();
+    $nsu = sync_account($org, ['mode' => 'nsu', 'name' => 'NSU']);
+    $compras = sync_account($org, ['mode' => 'compras', 'name' => 'Compras']);
+    $order = [];
+    Http::fake([
+        '*/create-jwt' => Http::response('jwt', 200),
+        '*/baixar-xmls' => function () use (&$order) {
+            $order[] = 'compras';
+
+            return Http::response('', 404);
+        },
+        '*/consultar-nsu' => function () use (&$order) {
+            $order[] = 'nsu';
+
+            return Http::response(['PrimeiroNsu' => 5, 'UltimoNsu' => 5]);
+        },
+        '*/baixar-xml/nsu/lote' => Http::response(sync_zip([sync_note('7', SYNC_ORG)])),
+    ]);
+
+    $results = app(SiegSyncRunner::class)->runAll(($this->deadline)());
+
+    expect($nsu->id)->toBeLessThan($compras->id)
+        ->and(array_map(fn ($r) => $r['account']->mode, $results))->toBe(['compras', 'nsu'])
+        ->and(array_map(fn ($r) => $r['run']->status, $results))->toBe(['ok', 'ok'])
+        ->and($order[0])->toBe('compras')->and($order)->toContain('nsu')
+        ->and(FiscalDocument::query()->count())->toBe(1);
 });
 
 // ------------------------------------------------------------ lock / pausa

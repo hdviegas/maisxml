@@ -18,6 +18,15 @@ class SiegAccount extends Model
     /** @use HasFactory<SiegAccountFactory> */
     use HasFactory;
 
+    public const MODE_NSU = 'nsu';
+
+    public const MODE_PERIODO = 'periodo';
+
+    /** Compras (NF-e em que a filial é destinatária) via baixar-xmls, rodando junto do NSU. */
+    public const MODE_COMPRAS = 'compras';
+
+    public const MODES = [self::MODE_NSU, self::MODE_PERIODO, self::MODE_COMPRAS];
+
     protected $table = 'sieg_accounts';
 
     protected $fillable = [

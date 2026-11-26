@@ -239,6 +239,14 @@ O limite é de 6 chamadas por minuto por IP (excedente retorna 429).
 
 **Acompanhamento:** no phpMyAdmin, consulte a tabela `sieg_sync_runs` (colunas `status`, `requests`, `downloaded`, `imported`, `errors`, `message`), por exemplo ordenando por `id` decrescente.
 
+**Compras contínuas (modo `compras`):** além da conta NSU, crie uma conta de compras que reutiliza a mesma API Key (sem digitá-la). Rode do Mac, apontando para produção:
+
+```bash
+php artisan --env=production sieg:account 2 --name="Sacolão compras" --mode=compras --copy-key-from=1
+```
+
+Não precisa de SQL: o campo `mode` já comporta `compras`. A conta baixa só NF-e destinadas às filiais (últimas 48 h na primeira rodada) e roda antes da conta NSU em cada chamada do cron. Confira com `sieg:accounts` ou na tabela `sieg_sync_runs`.
+
 ### Opção B: cron noturno da Locaweb
 
 Só se for encontrado um caminho de PHP CLI no servidor. Agende no painel, uma vez por noite:

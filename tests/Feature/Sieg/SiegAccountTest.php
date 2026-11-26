@@ -186,3 +186,34 @@ test('migrations are idempotent when tables already exist', function () {
         ->and(Schema::hasTable('sieg_sync_cursors'))->toBeTrue()
         ->and(Schema::hasTable('sieg_sync_runs'))->toBeTrue();
 });
+
+test('compras mode with --copy-key-from reuses the key of the same organization without prompting or printing it', function () {
+    $org = sieg_org();
+    SiegAccount::query()->create(['organization_id' => $org->id, 'name' => 'NSU', 'api_key' => SIEG_KEY, 'mode' => 'nsu']);
+    $source = SiegAccount::query()->firstOrFail();
+
+    $this->artisan('sieg:account', [
+        'organization' => (string) $org->id, '--name' => 'Compras', '--mode' => 'compras', '--copy-key-from' => (string) $source->id,
+    ])->doesntExpectOutputToContain(SIEG_KEY)->assertSuccessful();
+
+    $new = SiegAccount::query()->where('name', 'Compras')->firstOrFail();
+    expect($new->mode)->toBe('compras')->and($new->api_key)->toBe(SIEG_KEY)->and($new->id)->not->toBe($source->id);
+});
+
+test('--copy-key-from refuses accounts of another organization or missing ones', function () {
+    $org = sieg_org();
+    $other = sieg_org('44555666000199', 'Outra');
+    $foreign = SiegAccount::query()->create(['organization_id' => $other->id, 'name' => 'X', 'api_key' => SIEG_KEY, 'mode' => 'nsu']);
+
+    $this->artisan('sieg:account', ['organization' => (string) $org->id, '--mode' => 'compras', '--copy-key-from' => (string) $foreign->id])
+        ->doesntExpectOutputToContain(SIEG_KEY)->assertFailed();
+    $this->artisan('sieg:account', ['organization' => (string) $org->id, '--mode' => 'compras', '--copy-key-from' => '9999'])
+        ->assertFailed();
+
+    expect(SiegAccount::query()->where('organization_id', $org->id)->count())->toBe(0);
+});
+
+test('invalid mode is rejected', function () {
+    $org = sieg_org();
+    $this->artisan('sieg:account', ['organization' => (string) $org->id, '--mode' => 'xyz'])->assertFailed();
+});

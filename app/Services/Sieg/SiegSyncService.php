@@ -25,7 +25,7 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Orquestra uma rodada de sincronização de uma conta SIEG (modos "nsu" e "periodo").
+ * Orquestra uma rodada de sincronização de uma conta SIEG (modos "nsu", "periodo" e "compras").
  * Nunca registra API Key, JWT nem XML.
  */
 class SiegSyncService
@@ -102,7 +102,7 @@ class SiegSyncService
             $conn = $account->connection();
             match ($account->mode) {
                 'nsu' => $this->syncNsu($account, $conn, $run, $deadline),
-                'periodo' => $this->syncPeriodo($account, $conn, $run, $deadline),
+                'periodo', SiegAccount::MODE_COMPRAS => $this->syncPeriodo($account, $conn, $run, $deadline),
                 default => throw new InvalidArgumentException('unknown_mode'),
             };
             $status = $this->deadlineHit ? 'partial' : 'ok';
@@ -252,15 +252,24 @@ class SiegSyncService
 
     private function syncPeriodo(SiegAccount $account, SiegConnection $conn, SiegSyncRun $run, CarbonInterface $deadline): void
     {
+        $cursors = [];
         foreach ($this->cursorSpecs($account) as [$cnpj, $role, $tipo]) {
-            $cursor = SiegSyncCursor::query()->firstOrCreate([
+            $cursors[] = SiegSyncCursor::query()->firstOrCreate([
                 'sieg_account_id' => $account->id,
                 'cnpj' => $cnpj,
                 'role' => $role,
                 'tipo_xml' => $tipo,
             ]);
+        }
 
-            $this->syncCursor($account, $conn, $run, $cursor, $deadline);
+        // Rodízio justo: com baixar-xmls a 2/min cabe ~1 consulta por rodada, então começar sempre
+        // pelo mesmo cursor deixaria os demais sem vez. Primeiro o mais atrasado (nunca sincronizado
+        // antes de todos), depois pelo synced_until mais antigo.
+        usort($cursors, fn (SiegSyncCursor $a, SiegSyncCursor $b): int => [$a->synced_until !== null, $a->synced_until?->getTimestamp() ?? 0, $a->id]
+            <=> [$b->synced_until !== null, $b->synced_until?->getTimestamp() ?? 0, $b->id]);
+
+        foreach ($cursors as $cursor) {
+            $this->syncCursor($account, $conn, $run, $cursor, $deadline, $this->modeSpec($account)['lookback_hours']);
 
             if ($this->deadlineHit) {
                 return;
@@ -268,17 +277,44 @@ class SiegSyncService
         }
     }
 
+    /**
+     * Definição por modo: escopo dos cursores, papéis, tipos e janela inicial (em horas).
+     * `compras` é sempre por filial, só como destinatário (dest) e só NF-e (tipo 1),
+     * independente de `periodo_scope`.
+     *
+     * @return array{branch:bool, roles:list<string>, tipos:list<int>, lookback_hours:int}
+     */
+    private function modeSpec(SiegAccount $account): array
+    {
+        if ($account->mode === SiegAccount::MODE_COMPRAS) {
+            return [
+                'branch' => true,
+                'roles' => ['dest'],
+                'tipos' => [1],
+                'lookback_hours' => max(1, (int) config('sieg.sync.compras_initial_lookback_hours')),
+            ];
+        }
+
+        return [
+            'branch' => config('sieg.sync.periodo_scope') === 'branch',
+            'roles' => ['dest', 'emit'],
+            'tipos' => array_map('intval', (array) config('sieg.sync.tipos_xml')),
+            'lookback_hours' => (int) config('sieg.sync.initial_lookback_days') * 24,
+        ];
+    }
+
     /** @return list<array{0:string,1:string,2:int}> */
     private function cursorSpecs(SiegAccount $account): array
     {
-        $tipos = array_map('intval', (array) config('sieg.sync.tipos_xml'));
+        $def = $this->modeSpec($account);
+        $tipos = $def['tipos'];
         $specs = [];
 
-        if (config('sieg.sync.periodo_scope') === 'branch') {
+        if ($def['branch']) {
             $cnpjs = Branch::query()->where('empresa', $account->organization_id)->pluck('cnpj')
                 ->map(fn ($c) => Cnpj::digits((string) $c))->filter()->unique()->values();
             foreach ($cnpjs as $cnpj) {
-                foreach (['dest', 'emit'] as $role) {
+                foreach ($def['roles'] as $role) {
                     foreach ($tipos as $tipo) {
                         $specs[] = [$cnpj, $role, $tipo];
                     }
@@ -295,12 +331,11 @@ class SiegSyncService
         return $specs;
     }
 
-    private function syncCursor(SiegAccount $account, SiegConnection $conn, SiegSyncRun $run, SiegSyncCursor $cursor, CarbonInterface $deadline): void
+    private function syncCursor(SiegAccount $account, SiegConnection $conn, SiegSyncRun $run, SiegSyncCursor $cursor, CarbonInterface $deadline, int $lookbackHours): void
     {
         $pageSize = max(1, min(50, (int) config('sieg.sync.page_size')));
         $windowHours = max(1, (int) config('sieg.sync.window_hours'));
         $overlapHours = (int) config('sieg.sync.overlap_hours');
-        $lookbackDays = (int) config('sieg.sync.initial_lookback_days');
 
         // Dentro de uma rodada, janelas consecutivas seguem a anterior (sem reaplicar a sobreposição).
         $resumeFrom = null;
@@ -320,7 +355,7 @@ class SiegSyncService
                     $caughtUp = $cursor->synced_until->greaterThanOrEqualTo($now->copy()->subHours($windowHours));
                     $start = $caughtUp ? $cursor->synced_until->copy()->subHours($overlapHours) : $cursor->synced_until->copy();
                 } else {
-                    $start = $now->copy()->subDays($lookbackDays);
+                    $start = $now->copy()->subHours($lookbackHours);
                 }
                 $end = $start->copy()->addHours($windowHours);
                 if ($end->greaterThan($now)) {

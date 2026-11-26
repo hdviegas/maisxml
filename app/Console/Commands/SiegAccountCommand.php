@@ -14,18 +14,19 @@ class SiegAccountCommand extends Command
     protected $signature = 'sieg:account
         {organization : ID da empresa ou CNPJ}
         {--name= : Nome da conta (padrão: razão social/fantasia da empresa)}
-        {--mode=nsu : nsu|periodo}
+        {--mode=nsu : nsu|periodo|compras}
         {--enable : Habilita a conta}
         {--disable : Desabilita a conta}
-        {--rotate-key : Troca a API Key}';
+        {--rotate-key : Troca a API Key}
+        {--copy-key-from= : ID de outra conta da MESMA empresa cuja API Key será reutilizada (sem pergunta)}';
 
     protected $description = 'Cadastra ou atualiza a conta SIEG de uma empresa (a API Key é pedida de forma oculta)';
 
     public function handle(): int
     {
         $mode = (string) $this->option('mode');
-        if (! in_array($mode, ['nsu', 'periodo'], true)) {
-            $this->error('Modo inválido. Use nsu ou periodo.');
+        if (! in_array($mode, SiegAccount::MODES, true)) {
+            $this->error('Modo inválido. Use nsu, periodo ou compras.');
 
             return self::FAILURE;
         }
@@ -38,6 +39,17 @@ class SiegAccountCommand extends Command
         $org = $this->resolveOrganization((string) $this->argument('organization'));
         if ($org === null) {
             return self::FAILURE;
+        }
+
+        $copyKey = null;
+        if ($this->option('copy-key-from') !== null && $this->option('copy-key-from') !== '') {
+            $source = SiegAccount::query()->find((int) $this->option('copy-key-from'));
+            if ($source === null || (int) $source->organization_id !== (int) $org->id) {
+                $this->error('--copy-key-from: conta inexistente ou de outra empresa.');
+
+                return self::FAILURE;
+            }
+            $copyKey = (string) $source->api_key;
         }
 
         $name = trim((string) ($this->option('name') ?: ($org->fantasia ?: $org->social)));
@@ -53,7 +65,7 @@ class SiegAccountCommand extends Command
         $created = $account === null;
 
         if ($created) {
-            $key = $this->askKey();
+            $key = $copyKey ?? $this->askKey();
             if ($key === null) {
                 return self::FAILURE;
             }
@@ -66,7 +78,7 @@ class SiegAccountCommand extends Command
             ]);
         } else {
             if ($this->option('rotate-key')) {
-                $key = $this->askKey();
+                $key = $copyKey ?? $this->askKey();
                 if ($key === null) {
                     return self::FAILURE;
                 }

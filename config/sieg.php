@@ -87,6 +87,10 @@ return [
         'overlap_hours' => (int) env('SIEG_SYNC_OVERLAP_HOURS', 2),
         'initial_lookback_days' => (int) env('SIEG_SYNC_INITIAL_LOOKBACK_DAYS', 5),
 
+        // Modo "compras": janela inicial (horas) de um cursor novo. Novembro já foi
+        // baixado manualmente; o cursor só precisa cobrir o que vem a partir de agora.
+        'compras_initial_lookback_hours' => (int) env('SIEG_COMPRAS_INITIAL_LOOKBACK_HOURS', 48),
+
         // Após N execuções seguidas com falha, a conta é pausada (minutos).
         'pause_after_failures' => 5,
         'pause_minutes' => 60,

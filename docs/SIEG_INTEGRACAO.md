@@ -59,7 +59,12 @@ Cobre entradas, saídas e eventos de toda a conta numa única sequência.
 - A primeira janela de cada rodada recua `overlap_hours` (padrão **2 h**) para pegar uploads atrasados.
 - **Vazão:** cerca de 100 XMLs/min, ou ~6.000/h. Para NFC-e de varejo em volume, prefira o modo NSU (lotes de 50 a até 60 req/min configurados, contra 3.000/min permitidos).
 
-Em ambos os modos:
+**Modo `compras` (compras contínuas, roda junto do NSU):** baixa as NF-e em que uma filial da empresa é **destinatária** via `baixar-xmls`.
+- Cursores só para `dest` × NF-e (tipo 1), um por CNPJ de filial, independente de `SIEG_PERIODO_SCOPE`. Filtros: `CnpjDest`, `TipoXml=1`, janela de `DataUpload`, `BaixarEventos=true` (cancelamentos).
+- Cursor novo começa `SIEG_COMPRAS_INITIAL_LOOKBACK_HOURS` (padrão **48 h**) para trás; depois segue `synced_until` com a mesma sobreposição do `periodo`.
+- Usa a mesma API Key da conta NSU, mas como conta separada (`--copy-key-from`). A `baixar-xmls` é limitada a 2 req/min por chave, então a conta faz 1-2 requisições por rodada e termina `partial`; o `SiegSyncRunner` roda contas `compras` **antes** das demais, sobrando o resto do prazo para o NSU.
+
+Em todos os modos:
 - **Duplicatas são ignoradas** (`OnDuplicateImport::Skip`).
 - XMLs de outros tipos (CT-e, NFS-e, CF-e) são contados como `ignored` e não travam a fila.
 - Eventos vão para `fiscal_events`. O cancelamento marca `xml.cancelada = 1`, inclusive quando a nota chega depois do evento.
@@ -137,6 +142,10 @@ Comandos: sieg:account, sieg:accounts, sieg:sync, sieg:probe
 2. No servidor, rode o comando abaixo. A chave é pedida com entrada oculta, **não** vai para o histórico do shell e **nunca deve ser enviada por chat ou e-mail**.
    ```bash
    php artisan sieg:account {id-ou-cnpj-da-empresa} --name="Sacolão"
+   ```
+   Para a conta de compras, reutilizando a chave de outra conta da mesma empresa (sem pedir nem exibir a chave):
+   ```bash
+   php artisan sieg:account {empresa} --name="Sacolão compras" --mode=compras --copy-key-from={id-da-conta-nsu}
    ```
 3. `php artisan sieg:probe {conta}` (opcional, uma única chamada real): confirma a autenticação e o formato da resposta.
 4. `php artisan sieg:sync --account={conta}`: primeira carga manual; acompanhe com `php artisan sieg:accounts`.

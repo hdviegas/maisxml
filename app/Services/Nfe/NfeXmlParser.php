@@ -75,6 +75,8 @@ class NfeXmlParser
         $recipientDoc = $this->firstText($xpath, './/*[local-name() = \'CNPJ\']', $dest)
             ?? $this->firstText($xpath, './/*[local-name() = \'CPF\']', $dest);
 
+        $recipientName = $this->firstText($xpath, './*[local-name() = \'xNome\']', $dest);
+
         $totalNode = $xpath->query('.//*[local-name() = \'ICMSTot\']', $inf)->item(0);
         $vNF = $this->firstText($xpath, './/*[local-name() = \'vNF\']', $totalNode ?? $inf);
 
@@ -107,6 +109,7 @@ class NfeXmlParser
             emitterName: $emitterName,
             totalIcms: $vIcms,
             totalFrete: $vFrete,
+            recipientName: $recipientName,
         );
     }
 

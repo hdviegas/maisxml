@@ -11,6 +11,8 @@ return [
     'col_chave' => 'Chave',
     'col_issue' => 'Emissão',
     'col_model' => 'Modelo',
+    'col_emitter' => 'Emitente',
+    'col_recipient' => 'Destinatário',
     'col_branch' => 'Filial',
     'col_sped' => 'SPED',
     'col_total' => 'Total',

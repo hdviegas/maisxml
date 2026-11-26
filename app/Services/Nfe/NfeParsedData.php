@@ -20,5 +20,6 @@ readonly class NfeParsedData
         public ?string $emitterName = null,
         public ?string $totalIcms = null,
         public ?string $totalFrete = null,
+        public ?string $recipientName = null,
     ) {}
 }

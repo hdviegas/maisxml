@@ -7,6 +7,7 @@ use App\Http\Controllers\Concerns\InteractsWithFilteredDocuments;
 use App\Models\Branch;
 use App\Models\FiscalDocument;
 use App\Services\Tenant\ActiveOrganizationSession;
+use App\Support\Tenant\Cnpj;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -20,8 +21,7 @@ class DocumentsIndexController extends Controller
 
         $perPage = 15;
 
-        $query = $this->documentsQueryFromRequest($request, withSpedColumns: true)
-            ->with('branch');
+        $query = $this->documentsQueryFromRequest($request, withSpedColumns: true);
 
         $filters = $this->documentFilters($request);
         $periodParams = array_filter([
@@ -33,16 +33,29 @@ class DocumentsIndexController extends Controller
 
         $orgIds = ActiveOrganizationSession::scopedOrganizationIds($request->user());
 
+        $branches = Branch::query()
+            ->whereIn('empresa', $orgIds->all())
+            ->orderBy('social')
+            ->get();
+
+        // Single preloaded map (digits-only CNPJ => branch name) used as fallback for empty social_*.
+        $branchNamesByCnpj = [];
+        foreach ($branches as $b) {
+            $digits = Cnpj::digits((string) $b->cnpj);
+            $name = trim((string) $b->fantasia) !== '' ? trim((string) $b->fantasia) : trim((string) $b->social);
+            if ($digits !== '' && $name !== '') {
+                $branchNamesByCnpj[$digits] = $name;
+            }
+        }
+
         return view('documents.index', [
+            'branchNamesByCnpj' => $branchNamesByCnpj,
             'documents' => $documents,
             'filterParams' => $request->query(),
             'issuedFrom' => $filters->issuedFrom,
             'issuedTo' => $filters->issuedTo,
             'periodIsDefault' => ! $request->filled('issued_from') && ! $request->filled('issued_to') && $periodParams !== [],
-            'branches' => Branch::query()
-                ->whereIn('empresa', $orgIds->all())
-                ->orderBy('social')
-                ->get(),
+            'branches' => $branches,
             'spedReconcileOptions' => [
                 '' => __('documents.filter_sped_all'),
                 'none' => __('documents.filter_sped_none'),

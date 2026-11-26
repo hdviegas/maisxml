@@ -19,6 +19,15 @@
         ->filter(fn ($k) => request($k) !== null && request($k) !== '')
         ->count();
     $advancedOpen = $advancedActiveCount > 0;
+    $partyCell = function (?string $name, ?string $doc) use ($branchNamesByCnpj): array {
+        $digits = \App\Support\Tenant\Cnpj::digits($doc);
+        $label = trim((string) $name);
+        if ($label === '' && $digits !== '') {
+            $label = $branchNamesByCnpj[$digits] ?? '';
+        }
+
+        return [$label, $digits !== '' ? \App\Support\Tenant\Cnpj::format($digits) : ''];
+    };
 @endphp
 
 <x-app-layout>
@@ -196,7 +205,8 @@
                                     <th scope="col" class="mx-table-header">{{ __('documents.col_chave') }}</th>
                                     <th scope="col" class="mx-table-header">{{ __('documents.col_issue') }}</th>
                                     <th scope="col" class="mx-table-header">{{ __('documents.col_model') }}</th>
-                                    <th scope="col" class="mx-table-header">{{ __('documents.col_branch') }}</th>
+                                    <th scope="col" class="mx-table-header">{{ __('documents.col_emitter') }}</th>
+                                    <th scope="col" class="mx-table-header">{{ __('documents.col_recipient') }}</th>
                                     <th scope="col" class="mx-table-header">{{ __('documents.col_operation_short') }}</th>
                                     <th scope="col" class="mx-table-header text-right">{{ __('documents.col_total') }}</th>
                                     <th scope="col" class="mx-table-header text-right">{{ __('documents.col_actions') }}</th>
@@ -223,7 +233,21 @@
                                             {{ $doc->issued_at?->timezone(config('app.timezone'))->format('d/m/Y H:i') ?? '—' }}
                                         </td>
                                         <td class="mx-table-cell tabular-nums">{{ $doc->modelo ?? '—' }}</td>
-                                        <td class="mx-table-cell max-w-[14rem] truncate whitespace-nowrap text-slate-600" title="{{ $doc->branch?->name }}">{{ $doc->branch?->name ?? '—' }}</td>
+                                        @foreach ([[$doc->social_emit, $doc->cnpj_emit], [$doc->social_dest, $doc->cnpj_dest]] as [$partyName, $partyDoc])
+                                            @php [$label, $fmt] = $partyCell($partyName, $partyDoc); @endphp
+                                            <td class="mx-table-cell max-w-[14rem] text-slate-600" @if ($label !== '') title="{{ $label }}" @endif>
+                                                @if ($label === '' && $fmt === '')
+                                                    —
+                                                @else
+                                                    @if ($label !== '')
+                                                        <div class="truncate">{{ $label }}</div>
+                                                    @endif
+                                                    @if ($fmt !== '')
+                                                        <div class="truncate text-xs tabular-nums text-slate-500">{{ $fmt }}</div>
+                                                    @endif
+                                                @endif
+                                            </td>
+                                        @endforeach
                                         <td class="mx-table-cell whitespace-nowrap">{{ $doc->operation_type?->label() ?? '—' }}</td>
                                         <td class="mx-table-cell whitespace-nowrap text-right font-semibold tabular-nums text-slate-900">
                                             @if ($doc->total !== null)
@@ -263,7 +287,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="8"
+                                        <td colspan="9"
                                             class="px-4 py-14 text-center text-sm text-slate-500">{{ __('documents.empty') }}</td>
                                     </tr>
                                 @endforelse

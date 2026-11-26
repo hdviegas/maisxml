@@ -147,6 +147,14 @@ class NfeImportService
         return mb_substr($name, 0, 200);
     }
 
+    /** `xml.social_emit` / `social_dest` are latin1 varchar(100) (same latin1 rule as legacySocial()). */
+    private function legacyPartyName(?string $name): ?string
+    {
+        $name = trim((string) preg_replace('/[^\x{0000}-\x{00FF}]/u', '?', $name ?? ''));
+
+        return $name === '' ? null : mb_substr($name, 0, 100);
+    }
+
     private function createDocument(
         Branch $branch,
         string $xmlBody,
@@ -182,8 +190,8 @@ class NfeImportService
                 'ip' => request()->ip() ?? '',
                 'cnpj_emit' => $parsed->emitterCnpj,
                 'cnpj_dest' => $parsed->recipientDoc,
-                'social_emit' => null,
-                'social_dest' => null,
+                'social_emit' => $this->legacyPartyName($parsed->emitterName),
+                'social_dest' => $this->legacyPartyName($parsed->recipientName),
                 'numero_nf' => $parsed->numero ?? 0,
                 'modelo_nf' => $parsed->modelo,
                 'serie_nf' => $parsed->serie,
@@ -246,8 +254,8 @@ class NfeImportService
                 'data_nf' => $parsed->issuedAt,
                 'cnpj_emit' => $parsed->emitterCnpj,
                 'cnpj_dest' => $parsed->recipientDoc,
-                'social_emit' => null,
-                'social_dest' => null,
+                'social_emit' => $this->legacyPartyName($parsed->emitterName),
+                'social_dest' => $this->legacyPartyName($parsed->recipientName),
                 'numero_nf' => $parsed->numero ?? 0,
                 'modelo_nf' => $parsed->modelo,
                 'serie_nf' => $parsed->serie,

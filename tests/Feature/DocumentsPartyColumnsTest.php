@@ -17,30 +17,34 @@ function pc_user(string $cnpj, ?string $fantasia = null, string $social = 'pc_fi
     return User::factory()->create(['cnpj' => $cnpj, 'email' => 'pc@example.com']);
 }
 
-test('documents page shows emitter and recipient with name and formatted document, no Filial column', function () {
-    $user = pc_user('11222333000181');
+test('documents page shows emitter and recipient with name and formatted document, no Filial/Modelo columns', function () {
+    $user = pc_user('11222333000181', 'Loja Fantasia Centro');
+    // Venda: emitente é a filial (nome fantasia, mesmo com outro nome no XML); destinatário é o cliente do XML.
     FiscalDocument::query()->create(legacy_xml_row([
         'chave' => chave_for('1', '11222333000181'),
         'data_nf' => now()->toDateString(),
-        'cnpj_emit' => '11222333000181', 'social_emit' => 'Fornecedor Exemplo LTDA',
+        'cnpj_emit' => '11222333000181', 'social_emit' => 'RAZAO SOCIAL DO XML LTDA',
         'cnpj_dest' => '12345678909', 'social_dest' => 'Maria Cliente',
     ]));
-    // branch recipient with empty social_dest -> fallback to branch name
+    // Compra: emitente é o fornecedor (nome do XML); destinatário é a filial (nome fantasia).
     FiscalDocument::query()->create(legacy_xml_row([
         'chave' => chave_for('2', '45543915000181'),
         'data_nf' => now()->toDateString(),
-        'cnpj_emit' => '45543915000181', 'social_emit' => null,
-        'cnpj_dest' => '11222333000181', 'social_dest' => '',
+        'cnpj_emit' => '45543915000181', 'social_emit' => 'Fornecedor Exemplo LTDA',
+        'cnpj_dest' => '11222333000181', 'social_dest' => 'OUTRA RAZAO DO XML',
     ]));
 
     $html = $this->actingAs($user)->get('/documentos')->assertOk()
         ->assertSee('Emitente')->assertSee('Destinatário')
-        ->assertSee('Fornecedor Exemplo LTDA')->assertSee('11.222.333/0001-81')
+        ->assertSee('Loja Fantasia Centro')->assertSee('11.222.333/0001-81')
         ->assertSee('Maria Cliente')->assertSee('123.456.789-09')
-        ->assertSee('pc_filial')->assertSee('45.543.915/0001-81')
+        ->assertSee('Fornecedor Exemplo LTDA')->assertSee('45.543.915/0001-81')
         ->getContent();
 
-    expect($html)->not->toContain('>Filial</th>');
+    expect($html)->not->toContain('>Filial</th>')
+        ->and($html)->not->toContain('RAZAO SOCIAL DO XML LTDA')
+        ->and($html)->not->toContain('OUTRA RAZAO DO XML')
+        ->and($html)->not->toContain('>'.__('documents.col_model').'</th>');
 });
 
 test('documents page shows the issue date without time and the total without currency symbol', function () {

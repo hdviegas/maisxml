@@ -21,10 +21,10 @@
     $advancedOpen = $advancedActiveCount > 0;
     $partyCell = function (?string $name, ?string $doc) use ($branchNamesByCnpj): array {
         $digits = \App\Support\Tenant\Cnpj::digits($doc);
-        $label = trim((string) $name);
-        if ($label === '' && $digits !== '') {
-            $label = $branchNamesByCnpj[$digits] ?? '';
-        }
+        // Filial do usuário: sempre o nome fantasia; demais partes: o nome que veio na NF.
+        $label = $digits !== '' && isset($branchNamesByCnpj[$digits])
+            ? $branchNamesByCnpj[$digits]
+            : trim((string) $name);
 
         return [$label, $digits !== '' ? \App\Support\Tenant\Cnpj::format($digits) : ''];
     };
@@ -205,7 +205,6 @@
                                     <th scope="col" class="mx-table-header">{{ __('documents.col_chave') }}</th>
                                     <th scope="col" class="mx-table-header">{{ __('documents.col_issue') }}</th>
                                     <th scope="col" class="mx-table-header whitespace-nowrap">{{ __('documents.col_numero') }}</th>
-                                    <th scope="col" class="mx-table-header">{{ __('documents.col_model') }}</th>
                                     <th scope="col" class="mx-table-header">{{ __('documents.col_emitter') }}</th>
                                     <th scope="col" class="mx-table-header">{{ __('documents.col_recipient') }}</th>
                                     <th scope="col" class="mx-table-header">{{ __('documents.col_operation_short') }}</th>
@@ -241,7 +240,6 @@
                                                 —
                                             @endif
                                         </td>
-                                        <td class="mx-table-cell tabular-nums">{{ $doc->modelo ?? '—' }}</td>
                                         @foreach ([[$doc->social_emit, $doc->cnpj_emit], [$doc->social_dest, $doc->cnpj_dest]] as [$partyName, $partyDoc])
                                             @php [$label, $fmt] = $partyCell($partyName, $partyDoc); @endphp
                                             <td class="mx-table-cell max-w-[14rem] text-slate-600" @if ($label !== '') title="{{ $label }}" @endif>
@@ -327,7 +325,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="10"
+                                        <td colspan="9"
                                             class="px-4 py-14 text-center text-sm text-slate-500">{{ __('documents.empty') }}</td>
                                     </tr>
                                 @endforelse

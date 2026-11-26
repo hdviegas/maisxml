@@ -230,7 +230,8 @@
                                             @endcan
                                         </td>
                                         <td class="mx-table-cell whitespace-nowrap tabular-nums text-slate-600">
-                                            {{ $doc->issued_at?->timezone(config('app.timezone'))->format('d/m/Y H:i') ?? '—' }}
+                                            {{-- xml.data_nf é DATE: sem hora e sem conversão de fuso (evitaria virar o dia anterior). --}}
+                                            {{ $doc->issued_at?->format('d/m/Y') ?? '—' }}
                                         </td>
                                         <td class="mx-table-cell tabular-nums">{{ $doc->modelo ?? '—' }}</td>
                                         @foreach ([[$doc->social_emit, $doc->cnpj_emit], [$doc->social_dest, $doc->cnpj_dest]] as [$partyName, $partyDoc])
@@ -251,7 +252,7 @@
                                         <td class="mx-table-cell whitespace-nowrap">{{ $doc->operation_type?->label() ?? '—' }}</td>
                                         <td class="mx-table-cell whitespace-nowrap text-right font-semibold tabular-nums text-slate-900">
                                             @if ($doc->total !== null)
-                                                R$ {{ number_format((float) $doc->total, 2, ',', '.') }}
+                                                {{ number_format((float) $doc->total, 2, ',', '.') }}
                                             @else
                                                 —
                                             @endif

@@ -42,6 +42,24 @@ test('documents page shows emitter and recipient with name and formatted documen
     expect($html)->not->toContain('>Filial</th>');
 });
 
+test('documents page shows the issue date without time and the total without currency symbol', function () {
+    $user = pc_user('11222333000181');
+    FiscalDocument::query()->create(legacy_xml_row([
+        'chave' => chave_for('3', '11222333000181'),
+        'data_nf' => now()->toDateString(),
+        'cnpj_emit' => '11222333000181',
+        'total_nf' => 1234.5,
+    ]));
+
+    $html = $this->actingAs($user)->get('/documentos')->assertOk()
+        ->assertSee(now()->format('d/m/Y'))
+        ->assertSee('1.234,50')
+        ->getContent();
+
+    expect($html)->not->toContain(now()->format('d/m/Y').' 00:00')
+        ->and($html)->not->toContain('R$ 1.234,50');
+});
+
 test('documents page branch fallback prefers fantasia', function () {
     $user = pc_user('11222333000181', 'Loja Fantasia');
     FiscalDocument::query()->create(legacy_xml_row([

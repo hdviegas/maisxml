@@ -9,6 +9,7 @@ return [
     'filter_branch' => 'Filial',
     'search_chave' => 'Chave (44 dígitos)',
     'col_chave' => 'Chave',
+    'col_numero' => 'Número',
     'col_issue' => 'Emissão',
     'col_model' => 'Modelo',
     'col_emitter' => 'Emitente',

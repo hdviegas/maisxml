@@ -6,6 +6,7 @@ use App\Models\Organization;
 use App\Models\User;
 use App\Services\Nfe\NfeImportService;
 use App\Support\Tenant\Cnpj;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Storage;
 
 function pc_user(string $cnpj, ?string $fantasia = null, string $social = 'pc_filial'): User
@@ -94,4 +95,43 @@ test('import stores latin1-safe social_emit and social_dest up to 100 chars', fu
     $doc = FiscalDocument::query()->where('chave', $chave)->firstOrFail();
     expect(mb_strlen($doc->social_emit))->toBe(100)
         ->and($doc->social_dest)->toBe('Jo?o Café');
+});
+
+test('documents page shows number/series column and the actions dropdown with every action', function () {
+    $user = pc_user('11222333000181');
+    $doc = FiscalDocument::query()->create(legacy_xml_row([
+        'chave' => chave_for('4', '11222333000181'),
+        'data_nf' => now()->toDateString(),
+        'cnpj_emit' => '11222333000181',
+        'numero_nf' => 351119,
+        'serie_nf' => 2,
+    ]));
+
+    $html = $this->actingAs($user)->get('/documentos')->assertOk()
+        ->assertSee('Número')->assertSee('351119 / 2')
+        ->assertSee('aria-haspopup="menu"', false)
+        ->assertSee('role="menu"', false)
+        ->assertSee(route('documents.view_xml', $doc), false)
+        ->assertSee(route('documents.danfe', $doc), false)
+        ->assertSee(route('documents.download', $doc), false)
+        ->getContent();
+
+    expect(substr_count($html, 'role="menuitem"'))->toBeGreaterThanOrEqual(3)
+        ->and($html)->toContain('delete-doc-'.$doc->id);
+});
+
+test('actions menu hides permission-gated entries', function () {
+    $user = pc_user('11222333000181');
+    $doc = FiscalDocument::query()->create(legacy_xml_row([
+        'chave' => chave_for('5', '11222333000181'),
+        'data_nf' => now()->toDateString(),
+        'cnpj_emit' => '11222333000181',
+    ]));
+    Gate::before(fn ($u, $ability) => in_array($ability, ['delete'], true) ? false : null);
+
+    $html = $this->actingAs($user)->get('/documentos')->assertOk()->getContent();
+
+    expect($html)->toContain(route('documents.download', $doc))
+        ->and($html)->not->toContain('id="delete-doc-'.$doc->id.'"')
+        ->and($html)->not->toContain('form="delete-doc-'.$doc->id.'"');
 });

@@ -204,6 +204,7 @@
                                     </th>
                                     <th scope="col" class="mx-table-header">{{ __('documents.col_chave') }}</th>
                                     <th scope="col" class="mx-table-header">{{ __('documents.col_issue') }}</th>
+                                    <th scope="col" class="mx-table-header whitespace-nowrap">{{ __('documents.col_numero') }}</th>
                                     <th scope="col" class="mx-table-header">{{ __('documents.col_model') }}</th>
                                     <th scope="col" class="mx-table-header">{{ __('documents.col_emitter') }}</th>
                                     <th scope="col" class="mx-table-header">{{ __('documents.col_recipient') }}</th>
@@ -233,6 +234,13 @@
                                             {{-- xml.data_nf é DATE: sem hora e sem conversão de fuso (evitaria virar o dia anterior). --}}
                                             {{ $doc->issued_at?->format('d/m/Y') ?? '—' }}
                                         </td>
+                                        <td class="mx-table-cell whitespace-nowrap tabular-nums">
+                                            @if ($doc->numero !== null)
+                                                {{ $doc->numero }}@if ($doc->serie !== null) / {{ $doc->serie }}@endif
+                                            @else
+                                                —
+                                            @endif
+                                        </td>
                                         <td class="mx-table-cell tabular-nums">{{ $doc->modelo ?? '—' }}</td>
                                         @foreach ([[$doc->social_emit, $doc->cnpj_emit], [$doc->social_dest, $doc->cnpj_dest]] as [$partyName, $partyDoc])
                                             @php [$label, $fmt] = $partyCell($partyName, $partyDoc); @endphp
@@ -258,37 +266,68 @@
                                             @endif
                                         </td>
                                         <td class="mx-table-cell">
-                                            <div class="flex flex-nowrap items-center justify-end gap-1">
-                                                @can('view', $doc)
-                                                    <a href="{{ route('documents.view_xml', $doc) }}" target="_blank" rel="noopener"
-                                                        class="mx-btn-xs" title="{{ __('documents.view_xml') }}" aria-label="{{ __('documents.view_xml') }}">
-                                                        <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" /></svg>
-                                                        <span class="hidden 2xl:inline">XML</span>
-                                                    </a>
-                                                    <a href="{{ route('documents.danfe', $doc) }}" target="_blank" rel="noopener"
-                                                        class="mx-btn-xs" title="{{ __('documents.download_danfe') }}" aria-label="{{ __('documents.download_danfe') }}">
-                                                        <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
-                                                        <span class="hidden 2xl:inline">PDF</span>
-                                                    </a>
-                                                    <a href="{{ route('documents.download', $doc) }}"
-                                                        class="mx-btn-xs" title="{{ __('documents.download') }}" aria-label="{{ __('documents.download') }}">
-                                                        <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
-                                                        <span class="hidden 2xl:inline">Baixar</span>
-                                                    </a>
-                                                @endcan
-                                                @can('delete', $doc)
-                                                    <button type="submit" form="delete-doc-{{ $doc->id }}"
-                                                        class="mx-btn-xs mx-btn-xs--danger" title="{{ __('documents.delete') }}" aria-label="{{ __('documents.delete') }}">
-                                                        <svg class="h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
-                                                        <span class="hidden 2xl:inline">{{ __('documents.delete') }}</span>
-                                                    </button>
-                                                @endcan
+                                            <div class="flex justify-end"
+                                                x-data="{ open: false, top: 0, left: 0,
+                                                    toggle() { this.open ? this.close() : this.show(); },
+                                                    show() {
+                                                        this.open = true;
+                                                        this.$nextTick(() => {
+                                                            const b = this.$refs.btn.getBoundingClientRect();
+                                                            const m = this.$refs.menu.getBoundingClientRect();
+                                                            const gap = 4;
+                                                            this.left = Math.max(8, Math.min(b.right - m.width, window.innerWidth - m.width - 8));
+                                                            this.top = (b.bottom + m.height + gap > window.innerHeight && b.top - m.height - gap > 0)
+                                                                ? b.top - m.height - gap : b.bottom + gap;
+                                                            this.$refs.menu.querySelector('[role=menuitem]')?.focus();
+                                                        });
+                                                    },
+                                                    step(d) {
+                                                        const items = [...this.$refs.menu.querySelectorAll('[role=menuitem]')];
+                                                        const i = items.indexOf(document.activeElement);
+                                                        items[(i + d + items.length) % items.length]?.focus();
+                                                    },
+                                                    close(focusBtn = false) { this.open = false; if (focusBtn) this.$refs.btn.focus(); } }"
+                                                @keydown.escape.window="open && close(true)"
+                                                @scroll.window="open && close()"
+                                                @resize.window="open && close()">
+                                                <button type="button" x-ref="btn" @click="toggle()"
+                                                    aria-haspopup="menu" :aria-expanded="open.toString()"
+                                                    class="mx-btn-xs" title="{{ __('documents.col_actions') }}" aria-label="{{ __('documents.col_actions') }}">
+                                                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 12a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm7.5 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Zm7.5 0a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0Z" /></svg>
+                                                    <span class="hidden 2xl:inline">{{ __('documents.col_actions') }}</span>
+                                                </button>
+                                                <div x-ref="menu" x-show="open" style="display:none" role="menu" @click.outside="close()"
+                                                    @keydown.arrow-down.prevent="step(1)" @keydown.arrow-up.prevent="step(-1)"
+                                                    :style="`top:${top}px;left:${left}px`"
+                                                    class="fixed z-50 w-48 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg">
+                                                    @can('view', $doc)
+                                                        <a href="{{ route('documents.view_xml', $doc) }}" target="_blank" rel="noopener" role="menuitem" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none">
+                                                            <svg class="h-4 w-4 shrink-0 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5" /></svg>
+                                                            {{ __('documents.view_xml') }}
+                                                        </a>
+                                                        <a href="{{ route('documents.danfe', $doc) }}" target="_blank" rel="noopener" role="menuitem" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none">
+                                                            <svg class="h-4 w-4 shrink-0 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+                                                            {{ __('documents.download_danfe') }}
+                                                        </a>
+                                                        <a href="{{ route('documents.download', $doc) }}" role="menuitem" class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 focus:bg-slate-50 focus:outline-none">
+                                                            <svg class="h-4 w-4 shrink-0 text-slate-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" /></svg>
+                                                            {{ __('documents.download') }}
+                                                        </a>
+                                                    @endcan
+                                                    @can('delete', $doc)
+                                                        <button type="submit" form="delete-doc-{{ $doc->id }}" role="menuitem"
+                                                            class="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-700 hover:bg-red-50 focus:bg-red-50 focus:outline-none">
+                                                            <svg class="h-4 w-4 shrink-0 text-red-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>
+                                                            {{ __('documents.delete') }}
+                                                        </button>
+                                                    @endcan
+                                                </div>
                                             </div>
                                         </td>
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="9"
+                                        <td colspan="10"
                                             class="px-4 py-14 text-center text-sm text-slate-500">{{ __('documents.empty') }}</td>
                                     </tr>
                                 @endforelse

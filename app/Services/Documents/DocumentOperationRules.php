@@ -10,6 +10,10 @@ use Illuminate\Database\Eloquent\Builder;
 /**
  * Role-based "Operação" rules (legacy api.php): classification depends on whether the user's own
  * branches emitted or received the note, not on the CFOP. Filter categories overlap on purpose.
+ *
+ * Transferência = both emitter and recipient are branches of the user's organizations (whatever the
+ * CNPJ root, purchase- or sale-shaped), or the recipient is a branch sharing the emitter's root.
+ * Compras, Saída and Devoluções exclude those transfers; Entradas gerais stays the broad superset.
  */
 final class DocumentOperationRules
 {
@@ -37,16 +41,31 @@ final class DocumentOperationRules
         $query->where(function (Builder $q) use ($type, $branchDigits, $sameRoot, $isEntryCfop): void {
             match ($type) {
                 DocumentOperationType::Compras => $q->whereIn('xml.cnpj_dest', $branchDigits)
+                    ->where(function (Builder $n) use ($branchDigits): void {
+                        $n->whereNull('xml.cnpj_emit')->orWhereNotIn('xml.cnpj_emit', $branchDigits);
+                    })
                     ->whereRaw('NOT ('.$sameRoot.')'),
-                DocumentOperationType::Saida => $q->whereIn('xml.cnpj_emit', $branchDigits),
-                DocumentOperationType::Transferencia => $q->whereIn('xml.cnpj_dest', $branchDigits)
-                    ->whereRaw($sameRoot),
+                DocumentOperationType::Saida => $q->whereIn('xml.cnpj_emit', $branchDigits)
+                    ->where(function (Builder $n) use ($branchDigits): void {
+                        $n->whereNull('xml.cnpj_dest')->orWhereNotIn('xml.cnpj_dest', $branchDigits);
+                    }),
+                DocumentOperationType::Transferencia => $q->where(function (Builder $t) use ($branchDigits): void {
+                    $t->where(function (Builder $both) use ($branchDigits): void {
+                        $both->whereIn('xml.cnpj_emit', $branchDigits)->whereIn('xml.cnpj_dest', $branchDigits);
+                    })->orWhere(function (Builder $root) use ($branchDigits): void {
+                        $root->whereIn('xml.cnpj_dest', $branchDigits)
+                            ->whereRaw('SUBSTR(xml.cnpj_dest, 1, 8) = SUBSTR(xml.cnpj_emit, 1, 8)');
+                    });
+                }),
                 DocumentOperationType::EntradasGerais => $q->whereIn('xml.cnpj_dest', $branchDigits)
                     ->orWhere(function (Builder $e) use ($branchDigits, $isEntryCfop): void {
                         $e->whereIn('xml.cnpj_emit', $branchDigits)->whereRaw($isEntryCfop);
                     }),
                 DocumentOperationType::Devolucoes => $q->whereIn('xml.cnpj_emit', $branchDigits)
-                    ->whereRaw($isEntryCfop),
+                    ->whereRaw($isEntryCfop)
+                    ->where(function (Builder $n) use ($branchDigits): void {
+                        $n->whereNull('xml.cnpj_dest')->orWhereNotIn('xml.cnpj_dest', $branchDigits);
+                    }),
             };
         });
     }
@@ -63,7 +82,7 @@ final class DocumentOperationRules
         $emitMine = $emit !== '' && in_array($emit, $branchDigits, true);
         $destMine = $dest !== '' && in_array($dest, $branchDigits, true);
 
-        if ($destMine && substr($dest, 0, 8) === substr($emit, 0, 8)) {
+        if (($emitMine && $destMine) || ($destMine && substr($dest, 0, 8) === substr($emit, 0, 8))) {
             return DocumentOperationType::Transferencia;
         }
 

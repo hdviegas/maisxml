@@ -8,6 +8,7 @@ use App\Services\Sieg\Exceptions\SiegRateLimitedException;
 use App\Services\Sieg\Exceptions\SiegUnavailableException;
 use App\Services\Sieg\SiegClient;
 use App\Services\Sieg\SiegConnection;
+use App\Services\Sieg\SiegRateLimiter;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
@@ -262,4 +263,67 @@ it('never logs the api key or jwt', function () {
     $dump = json_encode(array_map(fn ($r) => [$r['message'], $r['context']], $records));
     expect($dump)->not->toContain(SIEGC_KEY)->not->toContain(SIEGC_JWT)->not->toContain('secretxml')
         ->toContain($this->conn->limiterKey);
+});
+
+function sieg_http_levels(): array
+{
+    $handler = Log::channel('sieg_test')->getLogger()->getHandlers()[0];
+
+    return collect($handler->getRecords())->filter(fn ($r) => $r['message'] === 'sieg.http')
+        ->map(fn ($r) => $r['level_name'])->values()->all();
+}
+
+it('clamps the http timeouts to the time left until the deadline', function () {
+    config(['sieg.rate_limits.consultar-nsu' => 6000]);
+    $seen = [];
+    Http::fake([
+        '*/create-jwt' => sieg_jwt_ok(),
+        '*/consultar-nsu' => function (Request $r, array $options) use (&$seen) {
+            $seen = [$options['timeout'], $options['connect_timeout']];
+
+            return Http::response(['PrimeiroNsu' => 1, 'UltimoNsu' => 2]);
+        },
+    ]);
+
+    $this->client->consultarNsu($this->conn, now()->addSeconds(5));
+    expect($seen)->toBe([8, 8]);
+
+    $this->client->consultarNsu($this->conn, now()->addSeconds(1));
+    expect($seen)->toBe([4, 4]);
+
+    $this->client->consultarNsu($this->conn, now()->addMinutes(10));
+    expect($seen)->toBe([60, 10]);
+
+    $this->client->consultarNsu($this->conn);
+    expect($seen)->toBe([60, 10]);
+});
+
+it('turns a connection timeout caused by the deadline into SiegDeadlineException without backoff', function () {
+    Http::fake([
+        '*/create-jwt' => sieg_jwt_ok(),
+        '*/consultar-nsu' => function () {
+            $this->travel(10)->seconds(); // passa do prazo enquanto "espera" a SIEG
+
+            throw new ConnectionException('cURL error 28: timeout');
+        },
+    ]);
+
+    expect(fn () => $this->client->consultarNsu($this->conn, now()->addSeconds(5)))
+        ->toThrow(SiegDeadlineException::class);
+    Sleep::assertNeverSlept();
+    expect(app(SiegRateLimiter::class)->penalize($this->conn->limiterKey, 'consultar-nsu', null, 1))->toBeInt();
+});
+
+it('logs http anomalies at warning and healthy calls at info', function () {
+    Http::fake(['*/create-jwt' => sieg_jwt_ok(), '*/consultar-nsu' => Http::response(['PrimeiroNsu' => 1, 'UltimoNsu' => 2])]);
+    $this->client->consultarNsu($this->conn);
+    expect(sieg_http_levels())->toBe(['INFO', 'INFO']);
+
+});
+
+it('logs a 5xx response at warning level', function () {
+    config(['sieg.backoff.max_retries' => 0]);
+    Http::fake(['*/create-jwt' => sieg_jwt_ok(), '*/consultar-nsu' => Http::response('', 503)]);
+    expect(fn () => $this->client->consultarNsu($this->conn))->toThrow(SiegUnavailableException::class);
+    expect(sieg_http_levels())->toBe(['INFO', 'WARNING']);
 });

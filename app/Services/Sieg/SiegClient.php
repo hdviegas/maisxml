@@ -193,8 +193,8 @@ class SiegClient
         while (true) {
             $jwt = $this->jwt($conn, $deadline);
 
-            $response = $this->execute($conn, $endpoint, function () use ($conn, $jwt, $method, $path, $payload) {
-                $http = $this->http($conn)->withToken($jwt);
+            $response = $this->execute($conn, $endpoint, function () use ($conn, $jwt, $method, $path, $payload, $deadline) {
+                $http = $this->http($conn, $deadline)->withToken($jwt);
 
                 return $method === 'GET' ? $http->get($path) : $http->post($path, $payload ?? []);
             }, $deadline);
@@ -251,6 +251,11 @@ class SiegClient
 
             $this->log($endpoint, $status, $started, $conn);
 
+            // Timeout provocado pelo prazo da execução (timeout = restante + 3 s): não é falha da SIEG.
+            if ($status === 0 && $deadline !== null && now()->greaterThanOrEqualTo($deadline)) {
+                throw new SiegDeadlineException("Prazo da execução esgotado durante '$endpoint'.");
+            }
+
             if ($status !== 429 && $status !== 0 && $status < 500) {
                 return $response;
             }
@@ -273,11 +278,20 @@ class SiegClient
         }
     }
 
-    private function http(SiegConnection $conn): PendingRequest
+    private function http(SiegConnection $conn, ?CarbonInterface $deadline = null): PendingRequest
     {
+        $timeout = (int) config('sieg.timeout');
+        $connectTimeout = (int) config('sieg.connect_timeout');
+        if ($deadline !== null) {
+            // Com prazo, nunca esperamos a SIEG além dele (+3 s de folga para a resposta já em curso).
+            $bound = max(0, (int) ceil(now()->diffInSeconds($deadline, false))) + 3;
+            $timeout = max(1, min($timeout, $bound));
+            $connectTimeout = max(1, min($connectTimeout, $bound));
+        }
+
         return Http::baseUrl((string) config('sieg.base_url'))
-            ->timeout((int) config('sieg.timeout'))
-            ->connectTimeout((int) config('sieg.connect_timeout'))
+            ->timeout($timeout)
+            ->connectTimeout($connectTimeout)
             ->withHeaders([
                 'X-API-Key' => $conn->apiKey,
                 'Accept' => 'application/json',
@@ -321,7 +335,7 @@ class SiegClient
 
     private function requestJwt(SiegConnection $conn, ?CarbonInterface $deadline): Response
     {
-        return $this->execute($conn, self::E_JWT, fn () => $this->http($conn)
+        return $this->execute($conn, self::E_JWT, fn () => $this->http($conn, $deadline)
             ->withHeaders(['X-Access-Mode' => 'direct'])
             ->post('/api/v1/create-jwt'), $deadline);
     }
@@ -416,10 +430,14 @@ class SiegClient
 
     private function log(string $endpoint, int $status, int $startedNs, SiegConnection $conn): void
     {
-        Log::channel((string) config('logging.default'))->info('sieg.http', [
+        $durationMs = (int) round((hrtime(true) - $startedNs) / 1e6);
+        // Anomalias (falha, 429, 5xx, lentidão > 10 s) sobem para warning: visíveis com LOG_LEVEL=warning.
+        $anomalous = $status === 0 || $status === 429 || $status >= 500 || $durationMs > 10_000;
+
+        Log::channel((string) config('logging.default'))->log($anomalous ? 'warning' : 'info', 'sieg.http', [
             'endpoint' => $endpoint,
             'status' => $status,
-            'duration_ms' => (int) round((hrtime(true) - $startedNs) / 1e6),
+            'duration_ms' => $durationMs,
             'limiterKey' => $conn->limiterKey,
         ]);
     }

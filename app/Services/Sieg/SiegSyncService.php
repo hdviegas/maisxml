@@ -84,6 +84,8 @@ class SiegSyncService
         $this->deadlineHit = false;
         $this->notes = [];
 
+        $this->abortStaleRuns($account);
+
         $run = SiegSyncRun::query()->create([
             'sieg_account_id' => $account->id,
             'mode' => $account->mode,
@@ -151,12 +153,27 @@ class SiegSyncService
         return $run;
     }
 
+    /** Linhas 'running' de processos que morreram (timeout do PHP/host) nunca seriam fechadas. */
+    private function abortStaleRuns(SiegAccount $account): void
+    {
+        $maxRuntime = max((int) config('sieg.cron.max_runtime_seconds'), (int) config('sieg.sync.max_runtime_seconds'));
+
+        SiegSyncRun::query()
+            ->where('sieg_account_id', $account->id)
+            ->where('status', 'running')
+            ->where('started_at', '<', now()->subSeconds($maxRuntime + 120))
+            ->update([
+                'status' => 'aborted',
+                'finished_at' => now(),
+                'message' => 'interrompida (processo encerrado)',
+            ]);
+    }
+
     // ------------------------------------------------------------------ NSU
 
     private function syncNsu(SiegAccount $account, SiegConnection $conn, SiegSyncRun $run, CarbonInterface $deadline): void
     {
-        $range = $this->client->consultarNsu($conn, $deadline);
-        $run->bump('requests');
+        $range = $this->nsuRange($account, $conn, $run, $deadline);
         $primeiro = $range['primeiro'];
         $ultimo = $range['ultimo'];
 
@@ -172,12 +189,17 @@ class SiegSyncService
 
         $batchSize = max(1, min(50, (int) config('sieg.sync.nsu_batch')));
 
+        $lastBatchSeconds = 0.0;
+
         while ($cursor < $ultimo) {
-            if (now()->greaterThanOrEqualTo($deadline)) {
+            // Não inicia um lote que, pela duração do anterior, não terminaria dentro do prazo.
+            $needed = (int) round(max($lastBatchSeconds, 3.0) * 1000);
+            if (now()->addMilliseconds($needed)->greaterThan($deadline)) {
                 $this->deadlineHit = true;
                 break;
             }
 
+            $batchStarted = now();
             $from = $cursor + 1;
             $to = min($cursor + $batchSize, $ultimo);
 
@@ -192,7 +214,38 @@ class SiegSyncService
             $run->from_nsu ??= $from;
             $run->to_nsu = $to;
             $run->save();
+
+            $lastBatchSeconds = max(0.0, (float) $batchStarted->diffInSeconds(now(), false));
         }
+    }
+
+    /**
+     * Faixa de NSUs da conta. Reaproveita a última consulta enquanto o cursor não a alcançou,
+     * evitando uma chamada (lenta) a consultar-nsu em toda rodada.
+     *
+     * @return array{primeiro:int, ultimo:int}
+     */
+    private function nsuRange(SiegAccount $account, SiegConnection $conn, SiegSyncRun $run, CarbonInterface $deadline): array
+    {
+        $key = "sieg:nsu_range:{$account->id}";
+        $cached = Cache::get($key);
+
+        if (is_array($cached) && isset($cached['primeiro'], $cached['ultimo'])
+            && ($account->last_nsu ?? ($cached['primeiro'] - 1)) < $cached['ultimo']) {
+            return ['primeiro' => (int) $cached['primeiro'], 'ultimo' => (int) $cached['ultimo']];
+        }
+
+        $range = $this->client->consultarNsu($conn, $deadline);
+        $run->bump('requests');
+
+        $ttl = (int) config('sieg.sync.nsu_range_cache_seconds');
+        if ($ttl > 0 && ($range['primeiro'] !== 0 || $range['ultimo'] !== 0)) {
+            Cache::put($key, $range, now()->addSeconds($ttl));
+        } else {
+            Cache::forget($key);
+        }
+
+        return $range;
     }
 
     // -------------------------------------------------------------- período

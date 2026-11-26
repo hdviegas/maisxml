@@ -18,6 +18,8 @@ return [
 
     'base_url' => env('SIEG_BASE_URL', 'https://api.sieg.com'),
 
+    // Timeout máximo por requisição. Com prazo de execução (cron), é reduzido para o tempo
+    // restante + 3 s; sem prazo (diagnóstico) vale este valor.
     'timeout' => (int) env('SIEG_TIMEOUT', 60),
 
     'connect_timeout' => (int) env('SIEG_CONNECT_TIMEOUT', 10),
@@ -63,6 +65,11 @@ return [
         // Itens por página em baixar-xmls (máx. 50) e NSUs por lote (máx. 50).
         'page_size' => 50,
         'nsu_batch' => 50,
+
+        // Modo NSU: por quantos segundos reaproveitar a faixa (primeiro/último) de consultar-nsu.
+        // Enquanto o cursor não alcança o último NSU em cache, a consulta é pulada; ao alcançar
+        // (ou expirar), consulta de novo. 0 desativa o cache.
+        'nsu_range_cache_seconds' => (int) env('SIEG_NSU_RANGE_CACHE_SECONDS', 300),
 
         // Tipos baixados: 1 = NF-e, 4 = NFC-e (o parser atual só entende estes).
         'tipos_xml' => [1, 4],

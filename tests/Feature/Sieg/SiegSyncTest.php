@@ -6,8 +6,10 @@ use App\Models\FiscalDocument;
 use App\Models\Organization;
 use App\Models\SiegAccount;
 use App\Models\SiegSyncCursor;
+use App\Models\SiegSyncRun;
 use App\Services\Nfe\NfeImportService;
 use App\Services\Sieg\SiegSyncService;
+use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -507,4 +509,87 @@ test('import satisfies the strict legacy xml schema (NFC-e without recipient and
     // Replace path must satisfy the schema too.
     $replaced = $service->importForOrganization($org->id, sample_nfce_xml(sync_chave('5'), SYNC_ORG), OnDuplicateImport::Replace);
     expect($replaced->result)->toBe('replaced');
+});
+
+test('nsu: cached range skips consultar-nsu until the cursor catches up, then refreshes', function () {
+    $account = sync_account(sync_org());
+    $slow = true;
+    sync_fake_nsu(10, 13, function (array $nsus) use (&$slow) {
+        if ($slow) {
+            $slow = false;
+            $this->travel(2)->seconds();
+        }
+
+        return array_map(fn ($n) => sync_note((string) ($n % 10)), $nsus);
+    });
+    config(['sieg.sync.nsu_batch' => 2, 'sieg.sync.nsu_range_cache_seconds' => 300]);
+
+    // 1ª rodada: o 1º lote leva 2 s; faltam 2 s < 3 s mínimos -> para (partial).
+    $first = ($this->service)()->sync($account, now()->addSeconds(4));
+    expect($first->status)->toBe('partial')->and($first->requests)->toBe(2)
+        ->and($account->fresh()->last_nsu)->toBe(11);
+    expect(sync_requests('/consultar-nsu'))->toHaveCount(1);
+
+    // 2ª rodada: cursor (11) < ultimo em cache (13) -> sem consultar-nsu.
+    $second = ($this->service)()->sync($account->fresh(), ($this->deadline)());
+    expect($second->status)->toBe('ok')->and($second->requests)->toBe(1)->and($account->fresh()->last_nsu)->toBe(13);
+    expect(sync_requests('/consultar-nsu'))->toHaveCount(1);
+
+    // 3ª rodada: alcançou o cache -> consulta de novo.
+    ($this->service)()->sync($account->fresh(), ($this->deadline)());
+    expect(sync_requests('/consultar-nsu'))->toHaveCount(2);
+});
+
+test('nsu: predictive stop does not start a batch that would not fit before the deadline', function () {
+    $account = sync_account(sync_org());
+    sync_fake_nsu(10, 15, function (array $nsus) {
+        $this->travel(10)->seconds(); // cada lote "demora" 10 s
+
+        return array_map(fn ($n) => sync_note((string) ($n % 10)), $nsus);
+    });
+
+    // prazo de 15 s: após o 1º lote (10 s) restam 5 s < 10 s previstos -> para.
+    $run = ($this->service)()->sync($account, now()->addSeconds(15));
+
+    expect($run->status)->toBe('partial')
+        ->and(sync_requests('/baixar-xml/nsu/lote'))->toHaveCount(1)
+        ->and($account->fresh()->last_nsu)->toBe(11);
+});
+
+test('nsu: a connection timeout at the deadline ends the run as partial without recording a failure', function () {
+    $account = sync_account(sync_org());
+    Http::fake([
+        '*/create-jwt' => Http::response('jwt-token', 200),
+        '*/consultar-nsu' => function () {
+            $this->travel(60)->seconds();
+
+            throw new ConnectionException('cURL error 28');
+        },
+    ]);
+
+    $run = ($this->service)()->sync($account, now()->addSeconds(20));
+
+    expect($run->status)->toBe('partial')
+        ->and($account->fresh()->consecutive_failures)->toBe(0);
+    Sleep::assertNeverSlept();
+});
+
+test('stale running rows of the account become aborted; fresh and other accounts are left alone', function () {
+    $account = sync_account(sync_org());
+    $other = sync_account(sync_org(SYNC_OTHER));
+    sync_fake_nsu(0, 0, fn () => []);
+    $mk = fn ($acc, int $ago) => SiegSyncRun::query()->create([
+        'sieg_account_id' => $acc->id, 'mode' => 'nsu', 'status' => 'running', 'started_at' => now()->subSeconds($ago),
+    ] + array_fill_keys(SiegSyncRun::COUNTERS, 0));
+    $stale = $mk($account, 3600);
+    $fresh = $mk($account, 30);
+    $foreign = $mk($other, 3600);
+
+    ($this->service)()->sync($account, ($this->deadline)());
+
+    expect($stale->fresh()->status)->toBe('aborted')
+        ->and($stale->fresh()->finished_at)->not->toBeNull()
+        ->and($stale->fresh()->message)->toBe('interrompida (processo encerrado)')
+        ->and($fresh->fresh()->status)->toBe('running')
+        ->and($foreign->fresh()->status)->toBe('running');
 });
